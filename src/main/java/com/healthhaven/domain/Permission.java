@@ -1,0 +1,18 @@
+package com.healthhaven.domain;
+
+public enum Permission {
+    VIEW_PATIENTS,
+    REGISTER_PATIENT,
+    VIEW_ADMISSIONS,
+    ADMIT_PATIENT,
+    DISCHARGE_PATIENT,
+    RECORD_CHARGE,
+    VIEW_ROOMS,
+    MANAGE_ROOMS,
+    VIEW_STAFF,
+    MANAGE_STAFF,
+    DISPATCH_AMBULANCE,
+    VIEW_REPORTS,
+    MANAGE_USERS,
+    VIEW_AUDIT_LOG
+}
