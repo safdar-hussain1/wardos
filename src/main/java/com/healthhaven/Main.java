@@ -16,7 +16,7 @@ import java.util.Arrays;
  *   cli [...]           run a console command (see: cli help)
  *   serve [port]        start the read-only JSON API (default 8080)
  *   export [file]       write the dashboard data file (default docs/data/dashboard.json)
- *   audit               print the original-vs-rebuilt audit and exit
+ *   audit               run the naive-vs-Health-Haven correctness comparison
  * </pre>
  */
 public final class Main {
@@ -75,7 +75,7 @@ public final class Main {
                   cli [command]      console interface; try: cli help
                   serve [port]       start the JSON API (default port 8080)
                   export [file]      write the dashboard data file
-                  audit              print the original-vs-rebuilt audit
+                  audit              run the correctness comparison (naive vs Health Haven)
                 """);
     }
 }

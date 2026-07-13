@@ -11,10 +11,10 @@ import javax.swing.UIManager;
  * Boots the desktop client: install a modern look-and-feel, seed the database,
  * show the login window.
  *
- * <p>The original set the system look-and-feel from inside one screen's
- * constructor and used absolute pixel {@code setBounds} everywhere, which is why
- * every window was a fixed-size box with buttons whose black text sat on black
- * backgrounds. This uses FlatLaf and real layout managers.
+ * <p>The look-and-feel is installed once, here, before any window exists — not
+ * from inside a screen's constructor, where it would apply to whatever happened
+ * to be built afterwards. Layout is done with real layout managers rather than
+ * absolute {@code setBounds} calls, so the windows resize.
  */
 public final class DesktopApp {
 

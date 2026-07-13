@@ -21,9 +21,9 @@ import java.util.List;
 /**
  * Admits, discharges, and records charges against stays.
  *
- * <p>This service holds the two operations the original handled least safely.
+ * <p>This service holds the two operations that are easiest to get wrong.
  *
- * <p><b>Admit.</b> The original did two writes — insert the patient row, then
+ * <p><b>Admit.</b> The obvious version does two writes — insert the patient row, then
  * {@code update room set Availability='Occupied'} — with nothing tying them
  * together and nothing stopping a second admission to the same room. Here,
  * admitting is a <em>single</em> insert into {@code admissions}; occupancy is
@@ -31,7 +31,7 @@ import java.util.List;
  * index makes a double-booking impossible at the database level. The pre-checks
  * below turn that raw constraint violation into a clear domain error.
  *
- * <p><b>Discharge.</b> The original ran {@code delete from Patient_Info}, losing
+ * <p><b>Discharge.</b> The obvious version runs {@code delete from patient}, losing
  * the record. Here discharge issues the invoice and closes the stay in one
  * transaction, and the patient and their history remain.
  */
@@ -95,7 +95,7 @@ public final class AdmissionService {
 
     /**
      * A preview of the current bill for an active stay, without discharging.
-     * The desk can quote a running total at any time — the original could only
+     * The desk can quote a running total at any time — a system that only prices
      * ever show a single night's rate.
      */
     public Invoice quote(Admission admission) {

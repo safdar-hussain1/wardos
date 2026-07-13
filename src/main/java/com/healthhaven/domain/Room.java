@@ -5,12 +5,12 @@ import com.healthhaven.validation.Validate;
 /**
  * A room, as the hospital's estate knows it: a number, a category and a tariff.
  *
- * <p>Note what is <em>not</em> here: occupancy. The original stored an
- * {@code Availability} column on the room and updated it by hand from three
- * different screens, so "Occupied" was a claim rather than a fact and drifted
- * out of step with the patient table constantly. Occupancy is derived from the
- * admissions table instead — a room is occupied if and only if an ACTIVE
- * admission points at it, and a partial unique index makes two impossible.
+ * <p>Note what is <em>not</em> here: occupancy. Storing an {@code Availability}
+ * column on the room means every screen that admits or discharges has to
+ * remember to update it, so "Occupied" becomes a claim rather than a fact and
+ * drifts out of step with reality. Occupancy is derived from the admissions
+ * table instead — a room is occupied if and only if an ACTIVE admission points
+ * at it, and a partial unique index makes two of those impossible.
  */
 public final class Room {
 

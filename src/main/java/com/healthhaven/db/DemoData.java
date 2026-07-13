@@ -31,17 +31,17 @@ import java.util.Random;
  * departments, staff, rooms, an ambulance fleet, a back-catalogue of completed
  * stays (so the reports have history), and a set of patients currently admitted.
  *
- * <p>It is deterministic — seeded with a fixed {@link Random} — so the demo,
- * the dashboard data, and the screenshots are the same every run. This is what
- * makes the project reproducible by anyone: the original needed a MySQL server
- * and a schema you had to rebuild by hand from screenshots before it would show
- * a single row.
+ * <p>It is deterministic — seeded with a fixed {@link Random} — so the demo, the
+ * dashboard data and the screenshots are identical on every run and on every
+ * machine. Together with {@link Database}'s self-building schema, this is what
+ * lets anyone clone the repository and immediately see a working hospital with
+ * six months of history in it, rather than an empty set of tables.
  */
 public final class DemoData {
 
     private final HealthHaven app;
     private final MutableClock clock;
-    private final Random random = new Random(85);   // SE22UCSE085
+    private final Random random = new Random(85);   // fixed: the demo must not drift between runs
 
     /**
      * @param app   an application wired to the same {@code clock}
@@ -66,7 +66,7 @@ public final class DemoData {
     }
 
     private void seedUsers() {
-        app.auth().register("admin", "changeme-admin".toCharArray(), "Hospital Administrator", Role.ADMIN);
+        app.auth().register("admin", "aurora@35".toCharArray(), "Safdar Hussain", Role.ADMIN);
         app.auth().register("reception", "changeme-desk".toCharArray(), "Front Desk", Role.RECEPTIONIST);
         app.auth().register("dr.iyer", "changeme-doc1".toCharArray(), "Meera Iyer", Role.DOCTOR);
     }

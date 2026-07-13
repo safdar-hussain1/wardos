@@ -8,13 +8,13 @@ import java.time.LocalDate;
 /**
  * A person the hospital has registered.
  *
- * <p>Two changes from the original are deliberate and worth naming.
+ * <p>Two decisions here are deliberate and worth naming.
  *
  * <p>First, the primary key is a hospital-issued medical record number, not the
- * patient's Aadhaar number. The old {@code patient_info} table keyed rows on
- * whatever government ID was typed into the form, which meant the identity
- * document was the join key across the whole database and a patient who
- * presented a different card became a different person.
+ * patient's Aadhaar number. Keying rows on whatever government ID was typed into
+ * the form makes the identity document the join key across the whole database,
+ * and a patient who presents a different card on their next visit becomes a
+ * different person.
  *
  * <p>Second, only the last four digits of that document are retained. The
  * hospital needs to confirm which card it saw; it does not need to store it.

@@ -227,7 +227,7 @@ public final class ApiServer {
                 GET /api/patients     registered patients
                 GET /api/admissions   current admissions
                 GET /api/staff        directory with computed pay
-                GET /api/audit        original-vs-rebuilt findings
+                GET /api/audit        naive-vs-Health-Haven correctness findings
                 """;
         byte[] bytes = body.getBytes(StandardCharsets.UTF_8);
         exchange.getResponseHeaders().add("Content-Type", "text/plain; charset=utf-8");

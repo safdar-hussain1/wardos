@@ -25,9 +25,9 @@ import java.util.Optional;
  *
  * <p>Authentication goes through {@link com.healthhaven.service.AuthService},
  * which looks the account up with a parameterised query and verifies a bcrypt
- * hash. Compare with the original, whose login built a SQL string from the two
- * text fields and ran it. The seeded demo accounts are printed on the card so
- * the app can be tried immediately.
+ * hash — so what is typed into these two fields is a value, never SQL. The
+ * seeded demo accounts are printed on the card so the app can be tried
+ * immediately; click one to fill the form.
  */
 public final class LoginWindow extends JFrame {
 
@@ -117,7 +117,7 @@ public final class LoginWindow extends JFrame {
         title.setFont(Theme.H2);
         title.setForeground(Theme.INK);
         panel.add(title);
-        panel.add(demoRow("admin", "changeme-admin", "Administrator"));
+        panel.add(demoRow("admin", "aurora@35", "Administrator"));
         panel.add(demoRow("reception", "changeme-desk", "Receptionist"));
         panel.add(demoRow("dr.iyer", "changeme-doc1", "Doctor"));
         return panel;

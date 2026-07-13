@@ -5,7 +5,7 @@ import at.favre.lib.crypto.bcrypt.BCrypt;
 /**
  * Hashes and verifies passwords with bcrypt.
  *
- * <p>The original had none of this. The {@code login} table held passwords in
+ * <p>The cheap alternative is no hashing at all: a {@code login} table holding passwords in
  * plain text, and the check was a string built like
  * {@code "select * from login where ID = '" + user + "' and PW = '" + pass + "'"}.
  * A password of {@code ' OR '1'='1} logged you in as the first user in the table.

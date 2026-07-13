@@ -154,12 +154,12 @@ public final class Cli {
     }
 
     private void audit() {
-        rule("SECURITY & CORRECTNESS AUDIT — original vs rebuilt");
+        rule("CORRECTNESS COMPARISON — the naive approach vs Health Haven");
         for (AuditReport.Finding f : new AuditReport().run()) {
             out.printf("%n  [%s] %s%n", f.id(), f.title());
-            out.printf("      original : %s%n", f.legacyResult());
-            out.printf("      rebuilt  : %s%n", f.rebuiltResult());
-            out.printf("      impact   : %s%n", f.impact());
+            out.printf("      naive        : %s%n", f.naiveResult());
+            out.printf("      health haven : %s%n", f.healthHavenResult());
+            out.printf("      impact       : %s%n", f.impact());
         }
         out.println();
     }
@@ -175,7 +175,7 @@ public final class Cli {
                   payroll            headcount and total monthly payroll
                   ambulances         the fleet and its status
                   bill <adm#>        print the current bill for an admission
-                  audit              run the original-vs-rebuilt audit
+                  audit              compare the naive approach against Health Haven
                   help               this message
                 """);
         out.println("  Data lives in " + Path.of("data", "health-haven.db").toAbsolutePath());

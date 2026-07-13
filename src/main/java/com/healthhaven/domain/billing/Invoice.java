@@ -13,9 +13,10 @@ import java.util.Map;
  *
  * <p>An invoice is built once, from a list of {@link BillableItem}s and a
  * deposit, and every total on it is derived. Nothing here can disagree with
- * anything else here, which is the point: the original recomputed the "pending
- * amount" in the UI thread of whichever screen happened to be open, from
- * whatever strings were in the text fields at the time.
+ * anything else here, which is the point. The alternative is recomputing the
+ * amount owed inside whichever screen happens to be open, from whatever strings
+ * are in its text fields at the time — and then having two screens disagree
+ * about what the same patient owes.
  */
 public final class Invoice {
 
@@ -75,8 +76,8 @@ public final class Invoice {
     /**
      * What the patient still owes. Negative means the deposit exceeded the bill
      * and the hospital owes a refund — an outcome this system reports as a
-     * refund rather than, as the original did, printing a negative number in a
-     * box labelled "Pending Amount (Rs)" and leaving the desk clerk to guess.
+     * refund rather than printing a negative number in a box labelled "amount
+     * due" and leaving the desk clerk to work out what it means.
      */
     public Money balanceDue() {
         return grossTotal().minus(deposit);

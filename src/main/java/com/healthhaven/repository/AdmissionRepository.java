@@ -18,7 +18,7 @@ public interface AdmissionRepository {
 
     List<Admission> findActive();
 
-    /** Every stay this patient has ever had, newest first. The original could not answer this at all. */
+    /** Every stay this patient has ever had, newest first. Discharge archives, so this is never empty by accident. */
     List<Admission> findByPatient(long patientId);
 
     List<Admission> findAll();

@@ -38,7 +38,7 @@ import java.time.Clock;
  *
  * <p>Every layer above depends on interfaces, so this class is the only thing
  * that knows the persistence is JDBC and SQLite. Swap it for another
- * implementation and nothing in the services or the UI changes. The original had
+ * implementation and nothing in the services or the UI changes. A design where each screen owns its own SQL has
  * no such seam — every screen did {@code new Connect()} and wrote its own SQL,
  * so the database was welded to the UI in forty places.
  */

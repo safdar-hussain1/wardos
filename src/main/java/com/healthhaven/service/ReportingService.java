@@ -23,7 +23,7 @@ import java.util.TreeMap;
 /**
  * Read-only analytics over the whole hospital, computed from the live tables.
  *
- * <p>Everything here is derived on demand. The original stored occupancy and
+ * <p>Everything here is derived on demand. Storing occupancy and
  * doctor-counts as columns that drifted; these numbers cannot drift because they
  * are queries.
  */

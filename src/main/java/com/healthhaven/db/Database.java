@@ -12,21 +12,22 @@ import java.sql.Statement;
 /**
  * The one place that knows how to open a connection.
  *
- * <p>Three things the original got wrong are fixed here at once.
+ * <p>Three decisions are made here, and each one avoids a well-worn trap.
  *
- * <p>It hardcoded {@code DriverManager.getConnection("jdbc:mysql://localhost/…",
- * "root", "<the developer's own MySQL root password>")} — committed to source, in
- * plain sight. The location of the database is configuration here, and there is no
- * password to leak at all, because the database is a file.
+ * <p><b>The database is a file.</b> There is no server to install and no
+ * credentials to hardcode — the classic version of this class opens a connection
+ * to {@code jdbc:mysql://localhost/...} with a username and password baked into
+ * the source and committed to the repository. Here the location is configuration
+ * and there is no password to leak at all.
  *
- * <p>It constructed a {@code new Connect()} inside every button handler and
- * never closed any of them, so a long session leaked one MySQL connection per
- * click until the server refused more. Connections here are opened per unit of
- * work and closed by try-with-resources, always.
+ * <p><b>Connections are owned by a unit of work.</b> Opening a fresh connection
+ * inside every button handler and never closing it leaks one per click until the
+ * server refuses more. Everything here is opened per unit of work and closed by
+ * try-with-resources.
  *
- * <p>It required a running MySQL server with a schema you had to build by hand
- * from screenshots, which is why the project could not be run by anyone who was
- * not the author. This one creates its own schema on first open.
+ * <p><b>The schema builds itself.</b> A system that requires a database to be
+ * created by hand before it will start is a system nobody else can run. This one
+ * migrates on first open.
  */
 public final class Database implements AutoCloseable {
 
@@ -88,11 +89,12 @@ public final class Database implements AutoCloseable {
      * Runs {@code work} inside a transaction, committing on success and rolling
      * back on any exception.
      *
-     * <p>This is the mechanism that stops the original's admit-a-patient bug.
-     * {@code AddNewPatient.addPatient()} ran two statements — insert the patient,
-     * then mark the room occupied — as two separate auto-committed round trips.
-     * If the second failed, the patient was in a bed the system believed was
-     * empty. Both statements are one transaction here, or neither happens.
+     * <p>This is the mechanism that keeps admission atomic. Admitting a patient
+     * is two writes — record the stay, then log it — and the tempting shortcut is
+     * to fire them as two auto-committed round trips. If the second fails, the
+     * first still stands, and the hospital has a patient in a bed with no trace
+     * of how they got there. Both writes are one transaction here, or neither
+     * happens.
      */
     public <T> T inTransaction(TransactionalWork<T> work) {
         try (Connection connection = open()) {

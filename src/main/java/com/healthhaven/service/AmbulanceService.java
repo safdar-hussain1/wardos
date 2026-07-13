@@ -9,7 +9,7 @@ import java.util.List;
 /**
  * Dispatches and recalls ambulances.
  *
- * <p>The original's ambulance screen was a read-only table with a BACK button;
+ * <p>Dispatching is a real operation with a real invariant behind it;
  * you could not actually dispatch a vehicle. Dispatch and return are real state
  * transitions here, and the {@code uq_active_dispatch} index stops one ambulance
  * being sent to two places at once.

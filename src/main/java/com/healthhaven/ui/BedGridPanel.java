@@ -67,6 +67,25 @@ public final class BedGridPanel extends JPanel {
         sub.setFont(Theme.BODY);
         sub.setVerticalAlignment(SwingConstants.BOTTOM);
         cell.add(sub, java.awt.BorderLayout.SOUTH);
+
+        cell.setToolTipText(tooltip(room, active));
         return cell;
+    }
+
+    private String tooltip(Room room, Admission active) {
+        StringBuilder html = new StringBuilder("<html><b>").append(room.roomNo()).append("</b><br>")
+                .append(room.type().label()).append(" · floor ").append(room.floor()).append("<br>")
+                .append(room.nightlyRate().format()).append(" per night");
+        if (active != null) {
+            long nights = active.billableNights(Instant.now());
+            html.append("<br><br><b>Occupied</b> — ").append(active.diagnosis())
+                    .append("<br>").append(nights).append(nights == 1 ? " night" : " nights")
+                    .append(" · room charge ").append(room.nightlyRate().times(nights).format());
+        } else if (room.outOfService()) {
+            html.append("<br><br>Out of service");
+        } else {
+            html.append("<br><br>Available");
+        }
+        return html.append("</html>").toString();
     }
 }

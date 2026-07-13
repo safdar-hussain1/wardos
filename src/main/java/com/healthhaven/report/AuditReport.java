@@ -12,7 +12,7 @@ import com.healthhaven.domain.Room;
 import com.healthhaven.domain.RoomType;
 import com.healthhaven.domain.User;
 import com.healthhaven.domain.billing.Invoice;
-import com.healthhaven.legacy.LegacyHospital;
+import com.healthhaven.naive.NaiveHospital;
 
 import java.time.Duration;
 import java.time.Instant;
@@ -24,16 +24,22 @@ import java.util.Map;
 import java.util.Optional;
 
 /**
- * Runs the four audit findings live — the original's logic beside the rebuilt
- * system — and returns the results as data.
+ * Runs the four correctness scenarios live — the naive implementation beside
+ * Health Haven — and returns the results as data.
  *
- * <p>This is the project's equivalent of a results table: every row is produced
- * by actually executing both versions here, never asserted from memory. The CLI
- * prints it; the dashboard exporter serialises it.
+ * <p>Health Haven's costlier design decisions (parameterised SQL, an invoice that
+ * knows about length of stay, discharge as an archive, occupancy derived from
+ * admissions) are only worth their price if the cheap alternative really does
+ * fail. This class makes that testable rather than rhetorical: it executes
+ * {@link NaiveHospital} and the real services on identical inputs and reports
+ * what each one did.
+ *
+ * <p>Every figure the README and the dashboard quote about this comparison is
+ * produced here, and nowhere else.
  */
 public final class AuditReport {
 
-    public record Finding(String id, String title, String legacyResult, String rebuiltResult, String impact) {
+    public record Finding(String id, String title, String naiveResult, String healthHavenResult, String impact) {
     }
 
     public List<Finding> run() {
@@ -47,29 +53,30 @@ public final class AuditReport {
 
     private Finding sqlInjection() {
         try (Database db = Database.inMemory(); var c = db.open()) {
-            LegacyHospital legacy = new LegacyHospital(c);
-            legacy.addUser("safdarhussain", "se22ucse085");
-            boolean legacyIn = legacy.login("anyone", "' OR '1'='1");
+            NaiveHospital naive = new NaiveHospital(c);
+            naive.addUser("desk", "correct horse battery");
+            boolean naiveIn = naive.login("anyone", "' OR '1'='1");
 
             HealthHaven app = HealthHaven.inMemory();
-            app.auth().register("safdarhussain", "se22ucse085!".toCharArray(), "Safdar Hussain", Role.ADMIN);
-            Optional<User> rebuiltIn = app.auth().authenticate("anyone", "' OR '1'='1".toCharArray());
+            app.auth().register("desk", "correct horse battery".toCharArray(), "Front Desk", Role.ADMIN);
+            Optional<User> hhIn = app.auth().authenticate("anyone", "' OR '1'='1".toCharArray());
 
-            return new Finding("F1", "Login accepted SQL injection",
-                    "Payload \"' OR '1'='1\" logs in: " + legacyIn,
-                    "Same payload rejected: " + rebuiltIn.isEmpty() + " (passwords bcrypt-hashed)",
-                    "Anyone could enter the system without a valid account.");
+            return new Finding("C1", "Concatenated SQL lets anyone sign in",
+                    "Payload \"' OR '1'='1\" signs in: " + naiveIn,
+                    "Same payload rejected: " + hhIn.isEmpty() + " (parameterised; bcrypt hashes)",
+                    "Anyone could enter the system without an account. Passwords stored in plain text.");
         } catch (Exception e) {
-            throw new RuntimeException(e);
+            throw new IllegalStateException("could not run the authentication comparison", e);
         }
     }
 
     private Finding billing() {
         try (Database db = Database.inMemory(); var c = db.open()) {
-            LegacyHospital legacy = new LegacyHospital(c);
-            legacy.addRoom("P-301", "4500");
-            int legacyShort = legacy.pendingAmount("P-301", "3000");   // 1 "night"
-            int legacyLong = legacy.pendingAmount("P-301", "3000");    // 20-night stay, same input
+            NaiveHospital naive = new NaiveHospital(c);
+            naive.addRoom("P-301", "4500");
+            // The same call regardless of stay length, because the formula has no
+            // parameter for it. That is the entire finding.
+            int naiveBill = naive.pendingAmount("P-301", "3000");
 
             HealthHaven app = seeded();
             Patient p = registerPatient(app);
@@ -78,22 +85,22 @@ public final class AuditReport {
             ((MutableClock) app.clock()).set(Instant.now().plus(Duration.ofDays(20)));
             Invoice bill = app.admissionService().quote(app.admissions().findById(admission.id()).orElseThrow());
 
-            return new Finding("F2", "Bill ignored length of stay",
-                    "1-night and 20-night stays both bill ₹" + (legacyShort) + " (rate − deposit)",
+            return new Finding("C2", "The bill ignores length of stay",
+                    "1-night and 20-night stays both bill ₹" + naiveBill + " (rate − deposit)",
                     "20 nights × ₹4,500 − ₹3,000 deposit = " + bill.balanceDue().format(),
-                    "Long stays were under-billed by lakhs; over-deposits showed as negative bills.");
+                    "Long stays are under-billed by lakhs; an over-deposit shows as a negative bill.");
         } catch (Exception e) {
-            throw new RuntimeException(e);
+            throw new IllegalStateException("could not run the billing comparison", e);
         }
     }
 
     private Finding dischargeHistory() {
         try (Database db = Database.inMemory(); var c = db.open()) {
-            LegacyHospital legacy = new LegacyHospital(c);
-            legacy.addRoom("G-101", "1200");
-            legacy.admit("AADHAAR", "9999", "Anil Rao", "Male", "Pneumonia", "G-101", "now", "3000");
-            legacy.discharge("9999", "G-101");
-            int legacyRemaining = legacy.patientCount();
+            NaiveHospital naive = new NaiveHospital(c);
+            naive.addRoom("G-101", "1200");
+            naive.admit("AADHAAR", "9999", "Anil Rao", "Male", "Pneumonia", "G-101", "now", "3000");
+            naive.discharge("9999", "G-101");
+            int naiveRemaining = naive.patientCount();
 
             HealthHaven app = seeded();
             Patient p = registerPatient(app);
@@ -103,22 +110,22 @@ public final class AuditReport {
             boolean kept = app.patients().findByMrn(p.mrn()).isPresent()
                     && app.admissions().findByPatient(p.id()).size() == 1;
 
-            return new Finding("F3", "Discharge deleted the patient",
-                    "After discharge, patient records remaining: " + legacyRemaining,
+            return new Finding("C3", "Discharge deletes the patient",
+                    "Patient records remaining after discharge: " + naiveRemaining,
                     "Patient and stay history retained: " + kept + "; invoice issued",
-                    "The hospital lost every discharged patient's record permanently.");
+                    "The hospital permanently forgets everyone it discharges.");
         } catch (Exception e) {
-            throw new RuntimeException(e);
+            throw new IllegalStateException("could not run the discharge comparison", e);
         }
     }
 
     private Finding doubleBooking() {
         try (Database db = Database.inMemory(); var c = db.open()) {
-            LegacyHospital legacy = new LegacyHospital(c);
-            legacy.addRoom("P-301", "4500");
-            legacy.admit("AADHAAR", "1", "First", "Male", "A", "P-301", "now", "3000");
-            legacy.admit("AADHAAR", "2", "Second", "Female", "B", "P-301", "now", "3000");
-            int inOneRoom = legacy.patientCount();
+            NaiveHospital naive = new NaiveHospital(c);
+            naive.addRoom("P-301", "4500");
+            naive.admit("AADHAAR", "1", "First", "Male", "A", "P-301", "now", "3000");
+            naive.admit("AADHAAR", "2", "Second", "Female", "B", "P-301", "now", "3000");
+            int inOneRoom = naive.patientCount();
 
             HealthHaven app = seeded();
             long dept = app.departments().findAll().get(0).id();
@@ -131,19 +138,20 @@ public final class AuditReport {
                 refused = true;
             }
 
-            return new Finding("F4", "Two patients could share one bed",
-                    "Patients admitted to one room: " + inOneRoom,
-                    "Second admission to occupied room refused: " + refused,
-                    "Occupancy was a hand-updated flag, not a fact; beds were double-booked.");
+            return new Finding("C4", "Two patients can share one bed",
+                    "Patients admitted to a single room: " + inOneRoom,
+                    "Second admission to an occupied room refused: " + refused,
+                    "Occupancy is a hand-updated flag, not a fact, so beds get double-booked.");
         } catch (Exception e) {
-            throw new RuntimeException(e);
+            throw new IllegalStateException("could not run the occupancy comparison", e);
         }
     }
 
-    // Each rebuilt scenario needs two rooms and a department.
+    /** Each Health Haven scenario needs a department and the two rooms above. */
     private HealthHaven seeded() {
         var app = new HealthHaven(Database.inMemory(), new MutableClock(Instant.now()));
-        app.departments().insert(new Department(0, "General Medicine", "Dr. Test", "A-1", "Internal", "+91 40 1234 5678"));
+        app.departments().insert(new Department(0, "General Medicine", "Dr. Test", "A-1",
+                "Internal", "+91 40 1234 5678"));
         app.rooms().insert(Room.standard("P-301", RoomType.PRIVATE, 3));
         app.rooms().insert(Room.standard("G-101", RoomType.GENERAL, 1));
         return app;
@@ -161,8 +169,8 @@ public final class AuditReport {
             Map<String, Object> row = new LinkedHashMap<>();
             row.put("id", f.id());
             row.put("title", f.title());
-            row.put("legacy", f.legacyResult());
-            row.put("rebuilt", f.rebuiltResult());
+            row.put("naive", f.naiveResult());
+            row.put("healthHaven", f.healthHavenResult());
             row.put("impact", f.impact());
             rows.add(row);
         }

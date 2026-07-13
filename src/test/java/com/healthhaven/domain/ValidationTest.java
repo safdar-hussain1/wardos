@@ -10,9 +10,10 @@ import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
- * The original inserted whatever was typed and discovered the problem, if at all,
- * as a stack trace on a hidden console. These assert that bad input is refused at
- * construction, so an invalid object can never reach the database.
+ * Without fail-fast constructors, whatever was typed goes into the INSERT and the
+ * problem surfaces, if at all, as a stack trace on a console nobody is watching.
+ * These assert that bad input is refused at construction, so an invalid object
+ * can never reach the database in the first place.
  */
 class ValidationTest {
 

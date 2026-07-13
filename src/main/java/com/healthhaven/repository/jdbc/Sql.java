@@ -18,10 +18,9 @@ import java.util.Optional;
  * Small helpers shared by the JDBC repositories.
  *
  * <p>Every query in this package goes through {@link PreparedStatement}. There
- * is no method here that takes a SQL fragment and a value and concatenates them,
- * because the moment such a method exists somebody will use it. The original
- * built every one of its 30-odd queries by string concatenation, including the
- * login check.
+ * is deliberately no method here that takes a SQL fragment and a value and
+ * concatenates them, because the moment such a method exists somebody will use
+ * it — and the query it gets used on will be the login check.
  */
 final class Sql {
 

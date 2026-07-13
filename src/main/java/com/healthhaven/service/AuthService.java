@@ -13,7 +13,7 @@ import java.util.Optional;
  * <p>Login here is: look the account up by username with a parameterised query,
  * fetch its bcrypt hash, and verify. There is no code path in which the password
  * the user typed becomes part of a SQL string, so the injection that defeated
- * the original's login screen has nowhere to happen.
+ * the classic login-screen injection has nowhere to happen.
  */
 public final class AuthService {
 

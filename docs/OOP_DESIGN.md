@@ -1,13 +1,13 @@
 # OOP design notes
 
-The original was an object-oriented programming project that contained, in the end, one act of
-object-oriented programming: twelve classes extending `JFrame` so that they would be windows.
-Every one of them opened its own database connection, wrote its own SQL, and did its own
-arithmetic inside a button handler. There was no `Patient` type. A patient's name existed as a
-`String` in a `JTextField` and, briefly, inside a concatenated `INSERT`.
+It is easy to write a "hospital system" in which the only act of object-oriented programming is
+extending a window class so that the windows are windows. Each screen opens its own database
+connection, writes its own SQL, and does its own arithmetic in a button handler; there is no
+`Patient` type, and a patient's name exists as a `String` in a text field and, briefly, inside an
+`INSERT`.
 
-This document maps each principle to the class that earns it here. The test named beside each
-one is the proof it works.
+This document maps each principle to the class that earns it here — and, in each case, to what
+goes wrong without it. The test named beside each one is the proof it works.
 
 ---
 
@@ -25,21 +25,20 @@ It is `sealed`, permitting only `Patient` and `StaffMember`, so the set of peopl
 recognises is closed and can be reasoned about exhaustively.
 
 `Money` is the other abstraction that pulls its weight: an amount of rupees, held as integral
-paise, that cannot be constructed from a malformed string without an exception. In the original,
-money was a `VARCHAR` column parsed with `Integer.parseInt` at the moment of use — so a deposit
-of `"3,000"` crashed whichever screen touched it.
+paise, that cannot be constructed from a malformed string without an exception. Store money as a
+`VARCHAR` and parse it with `Integer.parseInt` at the moment of use, and a deposit of `"3,000"`
+crashes whichever screen touches it.
 
 ## Encapsulation
 
 - **`Money`** is immutable. `plus`, `minus`, `times` return new instances and overflow-check with
   `Math.addExact`. There is no way to reach the underlying `long` and corrupt it.
 - **`User`** has no getter for its password hash. Nothing above the repository layer can read it,
-  log it, or accidentally drop it into a Swing table model. The original stored passwords in plain
-  text and compared them by pasting them into a SQL string.
-- **`Room` does not have an `isOccupied` field.** This is the important one. The original kept an
-  `Availability` column on the room and updated it by hand from three different screens, so
-  "Occupied" was a *claim* that drifted out of step with the patient table. Occupancy is not state
-  a `Room` owns; it is a fact derived from whether an `ACTIVE` `Admission` points at it.
+  log it, or accidentally drop it into a Swing table model. You cannot leak what you cannot reach.
+- **`Room` does not have an `isOccupied` field.** This is the important one. Keep an `Availability`
+  column on the room and every screen that admits or discharges has to remember to update it, so
+  "Occupied" becomes a *claim* that drifts out of step with reality. Occupancy is not state a
+  `Room` owns; it is a fact derived from whether an `ACTIVE` `Admission` points at it.
 - Every domain constructor validates through `Validate` and throws `ValidationException`. An object
   cannot exist in an invalid state, so no code downstream has to wonder whether it is.
 
@@ -100,19 +99,19 @@ A `RoomCharge` computes itself as nights × the room's nightly rate. An `ExtraCh
 consult, a drug, an ambulance ride) is a quantity × a unit price recorded against the stay. Both
 are `BillableItem`s; the invoice adds them up without distinguishing.
 
-This is exactly the seam the original lacked. Its bill was one expression, written inline in a
-Swing action listener — `Integer.parseInt(price) - Integer.parseInt(deposit)` — where `price` was
-one night's rate and length of stay appeared nowhere. There was no object whose job was to know
-what a stay cost, so nothing could be wrong in one place and fixed in one place.
-*(`AdmissionBillingTest`, `LegacyBugReproductionTest$Billing`)*
+This is the seam that matters most. Without it, the bill is one expression written inline in an
+action listener — `Integer.parseInt(price) - Integer.parseInt(deposit)` — where `price` is one
+night's rate and the length of stay appears nowhere. There is no object whose job is to know what
+a stay cost, so nothing can be wrong in one place and fixed in one place.
+*(`AdmissionBillingTest`, `NaiveApproachComparisonTest$Billing`)*
 
 ## Composition over inheritance, where inheritance is wrong
 
-An `Admission` is not a kind of `Patient`, and a `Patient` is not a kind of `Admission` — the
-original conflated them, which is precisely why discharging someone ran
-`delete from Patient_Info`. Here they are separate objects in a relationship: a `Patient` exists
-once, permanently; an `Admission` is one stay, referencing a patient and a room. Discharge closes
-the admission and leaves the patient alone.
+An `Admission` is not a kind of `Patient`, and a `Patient` is not a kind of `Admission`. Conflate
+them — let the patient row *be* the stay — and discharging someone necessarily means deleting
+them. Here they are separate objects in a relationship: a `Patient` exists once, permanently; an
+`Admission` is one stay, referencing a patient and a room. Discharge closes the admission and
+leaves the person alone.
 
 `Invoice` is composed of `BillableItem`s rather than inheriting from anything, and services are
 composed of the repositories they need, injected as interfaces.
@@ -126,11 +125,11 @@ database and what would make swapping SQLite for Postgres a change confined to o
 
 ## Single responsibility
 
-The original's `AddNewPatient.java` was 169 lines that built a form, opened a database connection,
-queried the room list, validated nothing, wrote two `INSERT`/`UPDATE` statements as concatenated
-SQL, and showed a dialog. Six responsibilities in one class, none of them testable.
+"Add a new patient" is the operation that tempts you to put everything in one class: build a
+form, open a connection, query the room list, write two statements as concatenated SQL, show a
+dialog. Six responsibilities, none of them testable.
 
-The same operation now: `MainWindow` collects input, `AdmissionService.admit` enforces the rules
-(is the room bookable, is it free, is the patient already admitted) inside one transaction,
+Here: `MainWindow` collects input, `AdmissionService.admit` enforces the rules (is the room
+bookable, is it free, is the patient already admitted) inside one transaction,
 `AdmissionRepository` writes it, and the database's unique index guarantees the invariant even if
 every layer above it has a bug.

@@ -20,23 +20,23 @@ Dependencies point one way only. `domain` imports nothing from the layers above 
 know a database exists, which is why it can be tested without one. The three surfaces are
 interchangeable: each is a thin adapter over the same services, and none of them contains a rule.
 
-Contrast with the original, which had no layers at all. Each of its twelve `JFrame` subclasses
-was its own vertical slice — UI, SQL, and arithmetic in one file — so the same logic was written
-several times, slightly differently, and a fix in one screen did not reach the others.
+The alternative is a set of screens, each its own vertical slice with UI, SQL and arithmetic in
+one file. Then the same logic gets written several times, slightly differently, and a fix in one
+screen never reaches the others.
 
 ## Persistence
 
-**SQLite, embedded.** The original needed a running MySQL server, a schema you had to rebuild by
-hand from the screenshots in the report, and the author's own root password — which is why nobody
-else could actually run it. Here the database is a file, the schema is created on first open from
-`resources/db/schema.sql`, and demo data loads if the tables are empty. `mvn package && java -jar`
-gets you a populated hospital.
+**SQLite, embedded.** A system that needs a database server installed, a schema built by hand and
+a set of credentials before it will start is a system nobody else can run. Here the database is a
+file, the schema is created on first open from `resources/db/schema.sql`, and demo data loads if
+the tables are empty. `mvn package && java -jar` gets you a populated hospital with six months of
+history in it.
 
 **Connections.** `Database.open()` returns a fresh connection with `PRAGMA foreign_keys = ON` —
 SQLite defaults foreign keys *off*, per connection, so a schema's `REFERENCES` clauses are
 decoration unless every connection says otherwise. Connections are opened per unit of work and
-closed by try-with-resources. The original constructed `new Connect()` inside every button handler
-and never closed one, leaking a connection per click.
+closed by try-with-resources. Opening a connection inside every button handler and never closing
+it leaks one per click until the server refuses more.
 
 **Transactions.** `Database.inTransaction` commits on success and rolls back on any exception:
 
@@ -49,9 +49,9 @@ db.inTransaction(connection -> {
 ```
 
 Admitting a patient inserts an admission *and* writes an audit entry; discharging closes the
-admission *and* issues the invoice. Each is one transaction. The original ran its two statements
-as two separate auto-committed round trips, so if the second failed the first still stood — a
-patient in a bed the system believed was empty.
+admission *and* issues the invoice. Each is one transaction. Fire them as two auto-committed round
+trips instead and, when the second fails, the first still stands — a patient in a bed the system
+believes is empty.
 
 ## Invariants in the schema
 
@@ -82,18 +82,18 @@ admission points at it — occupancy is a query, not a column somebody remembere
 - **Role-based permissions** checked in the service layer, not the UI. `Role` maps to a
   `Set<Permission>`, and `AuthService.require(user, permission)` throws if it is absent. Disabling
   a button is a courtesy; the check behind it is the control.
-- **Minimal identity data.** The original keyed the patient table on whatever government ID was
-  typed into the form — the Aadhaar number was the join key across the database. Here the primary
-  key is a hospital-issued MRN and only the last four digits of the ID document are retained,
-  enough to confirm which card was seen and not enough to be worth stealing.
+- **Minimal identity data.** Keying the patient table on whatever government ID was typed into the
+  form makes the Aadhaar number the join key across the whole database. Here the primary key is a
+  hospital-issued MRN and only the last four digits of the ID document are retained — enough to
+  confirm which card was seen, and not enough to be worth stealing.
 - **The API is not open.** It serves patient names, MRNs and diagnoses, so it binds to loopback
   only, requires a bearer token on every `/api` route (compared in constant time, because a
   compare that returns early leaks the token one character at a time), and sends no
   `Access-Control-Allow-Origin` header — an earlier draft sent `*`, which would have let any web
   page the operator happened to visit read the ward list.
 - **Append-only audit log.** Every mutation records actor, action, entity, id and timestamp.
-  Nothing in `audit_log` is ever updated or deleted. The original had no audit trail at all, which
-  is how a `DELETE` on discharge went unnoticed.
+  Nothing in `audit_log` is ever updated or deleted. Without one, a destructive bug — a `DELETE` on
+  discharge, say — leaves no trace and goes unnoticed.
 
 ## Billing
 
@@ -111,12 +111,13 @@ Invoices are **frozen at discharge**: totals are computed once and stored. A bil
 changes after the patient has paid it is not a bill. `quote()` gives the live running total for a
 stay still in progress; `discharge()` issues the invoice.
 
-## The `legacy/` package
+## The `naive/` package
 
-`LegacyHospital` reproduces the original's login, admission, billing and discharge logic exactly —
-concatenated SQL, the `roomRate − deposit` formula, `DELETE` on discharge, no transaction. It is
-production code, not test code, so the audit can be run from the shipped jar
-(`java -jar health-haven.jar audit`) and the comparison is reproducible by anyone.
+`NaiveHospital` implements login, admission, billing and discharge the obvious way — concatenated
+SQL, the `rate − deposit` formula, `DELETE` on discharge, no transaction. Every design decision in
+this document costs more than that, and this package is how the cost is justified: it is executed,
+not described.
 
-It is never wired into the application. Nothing outside `report/AuditReport` and the audit tests
-imports it.
+It is production code rather than test code, so the comparison runs from the shipped jar
+(`java -jar health-haven.jar audit`) and is reproducible by anyone. It is never wired into the
+application — nothing outside `report/AuditReport` and the comparison tests imports it.

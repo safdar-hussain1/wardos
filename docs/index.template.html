@@ -226,7 +226,8 @@ code{font-family:var(--mono);font-size:.9em;background:color-mix(in srgb,var(--m
     <p class="lede">A hospital runs on answers to small, unforgiving questions. <b>Which beds are
       free? How long has this patient been in one? What do they owe?</b> Health Haven answers
       them — admissions, wards, billing, payroll, ambulance dispatch and an audit trail — behind a
-      layered Java domain model, one embedded database, and three interfaces onto the same rules.</p>
+      layered Java domain model, one embedded database, and three interfaces onto the same rules.
+      Everything on this page is exported by the running application.</p>
     <div class="chips">
       <span class="chip">Java 21</span><span class="chip">SQLite</span><span class="chip">Swing · CLI · REST</span>
       <span class="chip">35 tests</span><span class="chip">bcrypt auth</span><span class="chip">Zero setup</span>
@@ -333,7 +334,7 @@ code{font-family:var(--mono);font-size:.9em;background:color-mix(in srgb,var(--m
             <div class="formula">nights × rate − deposit</div>
           </div>
           <div class="ro legacy">
-            <div class="lbl">The 2024 version</div>
+            <div class="lbl">The naive formula</div>
             <div class="val" id="roLegacy">—</div>
             <div class="formula">rate − deposit</div>
           </div>
@@ -471,36 +472,37 @@ BillableItem → RoomCharge | ExtraCharge</div>
 
 <section id="audit">
   <div class="wrap">
-    <h2>What the first version got wrong</h2>
-    <p class="sub">This began as a college project in 2024, and going back over it I found four
-      defects that mattered. Its logic is kept in a <code>legacy/</code> package so both versions
-      can be run side by side and the difference <em>measured</em> — reproduce all of this with
+    <h2>Why it's built this way</h2>
+    <p class="sub">Several decisions here cost more than the obvious alternative — parameterised
+      SQL, an invoice that knows about length of stay, discharge as an archive, occupancy derived
+      rather than stored. The <code>naive/</code> package implements the obvious alternative, so
+      the difference can be <em>measured</em> instead of argued about. Reproduce all of it with
       <code>java -jar health-haven.jar audit</code>.</p>
 
     <div class="grid2" style="margin-bottom:20px">
       <div class="panel">
         <h3>The expensive one</h3>
-        <p class="note">The old bill was <code>rate − deposit</code>, where <code>rate</code> is the
-          price of <em>one night</em>. Length of stay never entered the sum. Replayed across the 40
-          invoices this hospital actually issued:</p>
+        <p class="note">Bill a stay as <code>rate − deposit</code> and it reads fine — until you
+          notice <code>rate</code> is the price of <em>one night</em>, and the length of stay is
+          nowhere in it. Replayed across the 40 invoices this hospital has actually issued:</p>
         <div class="chartbox" style="height:150px"><canvas id="impactChart"></canvas></div>
         <p class="note" style="margin:12px 0 0">A <em class="hl">91.3% shortfall</em>, and all 40
-          bills come out negative — the screen would have told the desk clerk that the hospital owed
-          the patient money.</p>
+          bills come out negative — the screen would tell the desk clerk that the hospital owes the
+          patient money.</p>
       </div>
       <div class="panel">
         <h3>The other three</h3>
         <ul class="ticks" style="margin-top:6px">
-          <li><b>Login accepted SQL injection.</b> The query was built by string concatenation, so the password <code>' OR '1'='1</code> logged you in as anyone. Passwords were stored in plain text.</li>
-          <li><b>Discharge deleted the patient.</b> <code>delete from Patient_Info</code> — the hospital forgot every discharged patient, permanently.</li>
-          <li><b>Two patients could share one bed.</b> Occupancy was a text column updated by hand from three different screens.</li>
+          <li><b>Concatenated SQL lets anyone in.</b> Build the login query by string concatenation and the password <code>' OR '1'='1</code> signs you in as anybody. Health Haven binds parameters and verifies a bcrypt hash.</li>
+          <li><b>Discharge as a delete loses the patient.</b> <code>delete from patient</code> and the hospital forgets everyone it discharges. Health Haven archives the stay and keeps the person.</li>
+          <li><b>Occupancy as a flag double-books beds.</b> A text column that every screen must remember to update drifts out of step. Health Haven derives it, and the database refuses the second admission.</li>
         </ul>
       </div>
     </div>
 
     <div class="panel tbl-scroll">
       <table>
-        <thead><tr><th>#</th><th>Defect</th><th>The 2024 version</th><th>Health Haven</th><th>Why it mattered</th></tr></thead>
+        <thead><tr><th>#</th><th>Trap</th><th>The naive approach</th><th>Health Haven</th><th>Why it matters</th></tr></thead>
         <tbody id="auditBody"></tbody>
       </table>
     </div>
@@ -590,8 +592,9 @@ document.getElementById('invoice').innerHTML = `
   <div class="iline"><span>Gross total</span><b>${inr(IV.grossTotalRupees)}</b></div>
   <div class="iline"><span>Less deposit</span><b>−${inr(IV.depositRupees)}</b></div>
   <div class="itot"><span><b>BALANCE DUE</b></span><span class="due">${inr(IV.balanceRupees)}</span></div>
-  <div class="legacyline">For this same stay, the 2024 version would have printed a balance of
-    <b>${inr(IV.legacyBalanceRupees)}</b> — one night's rate, minus the deposit.</div>`;
+  <div class="legacyline">Bill this stay the tempting way — <code>rate − deposit</code>, with the
+    14 nights nowhere in the sum — and it comes to <b>${inr(IV.naiveBalanceRupees)}</b>: the
+    hospital would owe the patient money.</div>`;
 
 /* ---------- price any stay ---------- */
 const RATES = {}; DATA.tariff.forEach(t => {});
@@ -606,7 +609,7 @@ const bugChart = new Chart(document.getElementById('bugChart'), {
   data:{ labels: Array.from({length:NMAX},(_,i)=>i+1), datasets:[
     { label:'Health Haven', data:[], borderColor:css('--s1'), backgroundColor:css('--s1'),
       borderWidth:2, pointRadius:0, pointHoverRadius:5, tension:0 },
-    { label:'2024 version', data:[], borderColor:css('--s6'), backgroundColor:css('--s6'),
+    { label:'rate − deposit', data:[], borderColor:css('--s6'), backgroundColor:css('--s6'),
       borderWidth:2, pointRadius:0, pointHoverRadius:5, borderDash:[5,4], tension:0 } ]},
   options:{ maintainAspectRatio:false, responsive:true,
     interaction:{ mode:'index', intersect:false },
@@ -735,7 +738,7 @@ new Chart(document.getElementById('deptChart'), {
 const BI = DATA.billingImpact;
 new Chart(document.getElementById('impactChart'), {
   type:'bar',
-  data:{ labels:['Health Haven','2024 version'], datasets:[{ data:[BI.correctGrossRupees, BI.legacyGrossRupees],
+  data:{ labels:['Health Haven','Naive formula'], datasets:[{ data:[BI.correctGrossRupees, BI.naiveGrossRupees],
     backgroundColor:[css('--s1'), css('--s6')], borderRadius:4, borderSkipped:false, barThickness:34 }]},
   options:{ maintainAspectRatio:false, responsive:true, indexAxis:'y',
     plugins:{ legend:{display:false}, tooltip:{ callbacks:{ label:c=>inr(c.parsed.x) } } },
@@ -744,14 +747,14 @@ new Chart(document.getElementById('impactChart'), {
   plugins:[{ id:'dl2', afterDatasetsDraw(c){ const {ctx}=c; ctx.save();
     ctx.font='500 11px "IBM Plex Mono", monospace'; ctx.fillStyle=css('--ink-2'); ctx.textBaseline='middle';
     c.getDatasetMeta(0).data.forEach((bar,i) =>
-      ctx.fillText(inrShort([BI.correctGrossRupees, BI.legacyGrossRupees][i]), bar.x+8, bar.y));
+      ctx.fillText(inrShort([BI.correctGrossRupees, BI.naiveGrossRupees][i]), bar.x+8, bar.y));
     ctx.restore(); } }]
 });
 
 /* ---------- audit table ---------- */
 document.getElementById('auditBody').innerHTML = DATA.audit.map(f => `
   <tr><td class="f">${f.id}</td><td><b>${f.title}</b></td>
-    <td class="bad">${f.legacy}</td><td class="good-t">${f.rebuilt}</td>
+    <td class="bad">${f.naive}</td><td class="good-t">${f.healthHaven}</td>
     <td style="color:var(--ink-2)">${f.impact}</td></tr>`).join('');
 
 /* ---------- theme ---------- */

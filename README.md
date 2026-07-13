@@ -7,75 +7,33 @@ database, and three interfaces (desktop app, CLI, JSON API).
 **[▶ Live dashboard](https://safdar-hussain1.github.io/health-haven/)** · 35 tests · zero setup (`mvn package && java -jar target/health-haven.jar`)
 
 <p align="center">
-  <img src="docs/screenshots/desktop-wards.png" width="49%" alt="Ward bed grid">
-  <img src="docs/screenshots/desktop-dashboard.png" width="49%" alt="Dashboard">
+  <img src="docs/screenshots/desktop-dashboard.png" width="49%" alt="The desktop dashboard: stat tiles, admissions by department, beds by ward type, revenue by charge type">
+  <img src="docs/screenshots/desktop-wards.png" width="49%" alt="The ward grid: every bed coloured by live occupancy">
+</p>
+<p align="center">
+  <img src="docs/screenshots/desktop-staff.png" width="70%" alt="The staff directory, with each person's monthly pay computed by their own class">
 </p>
 
 ---
 
-## The short version
+## What it does
 
-This started as a college OOP project — a Java Swing app talking to MySQL. Going back over
-it, the code had four defects that mattered, and one of them was expensive. I rebuilt the
-system properly and kept the original's logic in a `legacy/` package so both versions can be
-run side by side and the difference measured rather than asserted.
+A hospital runs on answers to small, unforgiving questions. Which beds are free? How long has
+this patient been in one? What do they owe? Health Haven answers them.
 
-The headline: **the original's billing formula ignored how long a patient stayed.** It
-computed the amount owed as `roomRate − deposit`, where `roomRate` is the rate for *one
-night*. Replayed across the 40 invoices this system issues from its seeded hospital, that
-formula bills **₹1,80,000 against a true ₹20,78,200 — a 91.3% revenue shortfall — and every
-single one of the 40 bills comes out negative**, i.e. the screen would have told the desk
-clerk that the hospital owed the patient money.
+| | |
+|---|---|
+| **Admissions** | Admit a patient into a free bed, or refuse — an occupied room is rejected by the database itself, not by a hopeful flag. Discharge closes the stay and issues an invoice. |
+| **Billing** | Nights × rate, plus procedures, pharmacy and transport, less the deposit. An over-deposit is a refund, stated as one. Invoices are frozen at discharge. |
+| **Wards** | 30 beds across four ward types. Occupancy is *derived* from active admissions, so it cannot drift. |
+| **Patients** | A permanent medical record number per person. Only the last four digits of an ID document are retained. |
+| **Payroll** | Each staff class computes its own pay from its own rules; payroll sums a mixed list without asking what is in it. |
+| **Ambulances** | Dispatch and recall. One vehicle cannot be sent to two emergencies at once. |
+| **Access control** | Bcrypt passwords (cost 12) and role permissions checked in the service layer, so a disabled button is a courtesy, not a control. |
+| **Audit log** | Append-only. Every mutation records who did it, to what, and when. |
 
-Run it yourself:
-
-```bash
-java -jar target/health-haven.jar audit
-```
-
----
-
-## What was wrong, and what it does now
-
-Each finding below is reproduced by a test in
-[`LegacyBugReproductionTest`](src/test/java/com/healthhaven/audit/LegacyBugReproductionTest.java),
-which runs the original's logic (from [`LegacyHospital`](src/main/java/com/healthhaven/legacy/LegacyHospital.java),
-a faithful extraction of the 2024 code) and then the rebuilt system on the same scenario.
-
-| # | Defect in the original | What actually happened | How it works now |
-|---|---|---|---|
-| **F1** | **Login was open to SQL injection.** `Login.java` built the query by concatenation: `"select * from login where ID = '" + user + "' and PW = '" + pass + "'"` | Signing in with the password `' OR '1'='1` and *any* username returns a row, so the check passes. Passwords were stored in plain text in a `login` table. | Parameterised queries everywhere; passwords are bcrypt hashes (cost 12). The same payload is treated as a literal string and fails. |
-| **F2** | **The bill ignored length of stay.** `Update_Patient_Details.java`: `Integer.parseInt(price) - Integer.parseInt(deposit)` | A 1-night and a 20-night stay in the same room produce the same bill. Across 40 real invoices: **₹1,80,000 billed vs ₹20,78,200 owed (−91.3%)**, and **40/40 bills negative**. | `nights × nightlyRate + extras − deposit`, computed by a `BillingService` over a polymorphic `List<BillableItem>`. Nights round up and are never zero. An over-deposit is reported as an explicit refund. |
-| **F3** | **Discharge deleted the patient.** `Patient_Discharge.java`: `delete from Patient_Info where number = ...` | The hospital forgot every discharged patient permanently. A returning patient was a brand new person with no history. | Discharge closes an `Admission` row and issues an `Invoice`. Patients and their full stay history are retained; nothing is ever deleted. |
-| **F4** | **Two patients could share one bed.** Occupancy was an `Availability` text column updated by hand from three screens. | Both admissions to the same room succeed. Occupancy drifted out of step with reality constantly. | Occupancy is *derived* from active admissions, and a partial unique index (`WHERE status='ACTIVE'`) makes a second admission to an occupied room impossible at the database level. |
-
-Two more things the original got wrong that aren't "findings" so much as hygiene: the
-developer's own MySQL root password was hardcoded in `Connect.java` and committed, and every
-one of the ~40 `catch` blocks was `e.printStackTrace()` — so failed operations silently did
-nothing while the UI carried on as though they had worked.
-
-### And the OOP, since that was the point of the course
-
-The original had twelve classes. All twelve extended `JFrame`, and each one opened its own
-database connection, wrote its own SQL, and did its own arithmetic inside a button handler.
-There was no patient type, no staff type, no bill — the data existed only as strings in text
-fields. Inheritance was used exactly once, to get a window.
-
-The rebuild uses the four pillars where they actually pay for themselves —
-[`docs/OOP_DESIGN.md`](docs/OOP_DESIGN.md) maps each one to the class that demonstrates it.
-The short version:
-
-- **Abstraction** — `Person` (sealed) is what the hospital knows about a human; `Patient` and
-  `StaffMember` extend it.
-- **Inheritance & polymorphism** — `StaffMember` is abstract with an abstract `monthlyPay()`.
-  `Doctor` adds a 30% specialty allowance (plus 10% past five years), an ICU `Nurse` adds 20%,
-  a `Driver` adds a flat ₹3,000. `StaffService.monthlyPayroll()` sums a `List<StaffMember>`
-  without knowing or asking what any of them are. Same idea for billing: `Invoice` totals a
-  `List<BillableItem>` where a `RoomCharge` (nights × rate) and an `ExtraCharge` (a scan, a
-  drug) compute themselves completely differently.
-- **Encapsulation** — `Money` is an immutable value object holding integer paise, so money is
-  never a `String` parsed with `Integer.parseInt` at the point of use. `User` exposes no getter
-  for its password hash at all.
+Three interfaces sit over one service layer, so none of them can disagree with the others:
+a Swing desktop client, a console, and a token-authenticated JSON API.
 
 ---
 
@@ -109,7 +67,7 @@ the live dashboard reads. Nothing on the dashboard or in this README is typed in
 | Intensive care | ₹9,000 | 4 | 1 | 3 |
 
 **Revenue mix** — room and board is 77% of billings, which is what makes F2 so costly: the one
-number the original got wrong was the one that dominates the bill.
+number the naive formula gets wrong is the one that dominates the bill.
 
 | Charge type | Billed |
 |---|---|
@@ -149,7 +107,7 @@ Then pick an interface:
 java -jar target/health-haven.jar             # desktop app (Swing + FlatLaf)
 java -jar target/health-haven.jar cli help    # console
 java -jar target/health-haven.jar serve 8080  # JSON API (loopback, bearer token)
-java -jar target/health-haven.jar audit       # the original-vs-rebuilt audit, live
+java -jar target/health-haven.jar audit       # naive vs Health Haven, run live
 java -jar target/health-haven.jar export      # regenerate docs/data/dashboard.json
 ```
 
@@ -161,8 +119,16 @@ loopback only, and every `/api` route needs a bearer token, which `serve` prints
 curl -H "Authorization: Bearer $HEALTH_HAVEN_API_TOKEN" http://localhost:8080/api/summary
 ```
 
-Demo logins (seeded, and shown on the login screen): `admin` / `changeme-admin`,
-`reception` / `changeme-desk`, `dr.iyer` / `changeme-doc1`.
+Demo accounts (seeded, and listed on the login screen — click one to fill the form):
+
+| Username | Password | Role |
+|---|---|---|
+| `admin` | `aurora@35` | Administrator — everything |
+| `reception` | `changeme-desk` | Receptionist — register, admit, discharge, dispatch |
+| `dr.iyer` | `changeme-doc1` | Doctor — view patients and admissions, record charges |
+
+The roles are enforced in the service layer, not the UI: sign in as `dr.iyer` and try to discharge
+someone and `AuthService.require` throws, because the doctor role has no discharge permission.
 
 Useful CLI commands:
 
@@ -202,12 +168,12 @@ health-haven/
 │   ├── service/         business logic and permission checks
 │   ├── db/              connection handling, transactions, schema migration, demo data
 │   ├── validation/      fail-fast constructors (Validate, ValidationException)
-│   ├── legacy/          the original's logic, preserved for the audit
+│   ├── naive/           the obvious implementation, kept for the comparison
 │   ├── report/          audit report + dashboard exporter
 │   ├── cli/  ui/  web/  the three surfaces
 │   └── Main.java        entry point / dispatcher
 ├── src/main/resources/db/schema.sql
-├── src/test/java/       35 tests, incl. the legacy-vs-rebuilt audit
+├── src/test/java/       35 tests, incl. the naive-vs-Health-Haven comparison
 └── docs/                dashboard (index.html + data/dashboard.json), design notes
 ```
 
@@ -226,6 +192,64 @@ must never break live in [`schema.sql`](src/main/resources/db/schema.sql):
 - money is `INTEGER` paise, never a float and never a string;
 - `audit_log` is append-only: every mutation records actor, action, entity and timestamp.
 
+## Where the OOP earns its keep
+
+Two places, and they are worth showing rather than reciting.
+
+**Payroll.** `StaffMember` is abstract with an abstract `monthlyPay()`. A `Doctor` adds a 30%
+specialty allowance (plus 10% past five years' service), a `Nurse` on a critical ward adds 20%,
+a `Driver` adds a flat ₹3,000. `StaffService.monthlyPayroll()` sums a `List<StaffMember>` and
+never asks what anything is:
+
+```java
+public Money monthlyPayroll(List<StaffMember> staff) {
+    return staff.stream()
+            .map(StaffMember::monthlyPay)     // Doctor? Nurse? Driver? Doesn't matter.
+            .reduce(Money.ZERO, Money::plus);
+}
+```
+
+Only the base salary is stored. Adding a `Pharmacist` tomorrow means writing one class and
+touching nothing else — no `instanceof`, no switch.
+
+**Billing.** `Invoice` totals a `List<BillableItem>` the same way. A `RoomCharge` computes itself
+as nights × the room's nightly rate; an `ExtraCharge` (a scan, a drug, an ambulance ride) is a
+quantity × a unit price. They are computed by completely different code, and the invoice adds
+them up without distinguishing.
+
+The hierarchy is sealed — `Person` permits only `Patient` and `StaffMember` — so the set of
+people the system recognises is closed and can be reasoned about exhaustively. Full notes in
+[`docs/OOP_DESIGN.md`](docs/OOP_DESIGN.md).
+
+---
+
+## Why it's built this way
+
+Several decisions here cost more than the obvious alternative: parameterised SQL, an invoice
+that knows about length of stay, discharge as an archive, occupancy derived rather than stored.
+Each is easy to dismiss as over-engineering until you watch what happens without it.
+
+So the repository contains both. [`naive/NaiveHospital`](src/main/java/com/healthhaven/naive/NaiveHospital.java)
+implements the obvious alternative — the version that compiles, runs, and is wrong — and
+[`NaiveApproachComparisonTest`](src/test/java/com/healthhaven/audit/NaiveApproachComparisonTest.java)
+runs both on the same inputs. The difference is measured, not argued about:
+
+```bash
+java -jar target/health-haven.jar audit
+```
+
+| # | The trap | What the naive version does | What Health Haven does |
+|---|---|---|---|
+| **C1** | Building the login query by string concatenation | The password `' OR '1'='1` signs you in as anybody, and passwords sit in the table in plain text | Parameterised queries throughout; bcrypt hashes (cost 12). The payload is a value, and fails. |
+| **C2** | Billing a stay as `rate − deposit` | `rate` is the price of *one night*, so a 1-night and a 20-night stay cost the same. Across the 40 invoices this hospital issues: **₹1,80,000 billed against a true ₹20,78,200 — a 91.3% shortfall — and all 40 bills come out negative** | `nights × rate + extras − deposit`, over a polymorphic `List<BillableItem>`. Nights round up and are never zero. An over-deposit is reported as a refund. |
+| **C3** | Discharge as `delete from patient` | The hospital forgets every patient it discharges. A returning patient is a stranger. | Discharge closes the `Admission` and issues an `Invoice`. The patient and their full history are kept forever. |
+| **C4** | Occupancy as an `Availability` column | Every screen that admits or discharges must remember to update it, so it drifts — and two patients end up in one bed | Occupancy is derived from active admissions, and a partial unique index makes the second admission impossible at the database level. |
+
+C2 is the expensive one, and the reason is in the revenue mix above: room and board is 77% of
+billings, so the single number the naive formula gets wrong is the one that dominates the bill.
+
+---
+
 ## Tests
 
 ```bash
@@ -235,8 +259,8 @@ mvn test        # 35 tests
 They cover the `Money` value object, billing arithmetic (including the round-up-and-never-zero
 night rule), polymorphic payroll over a mixed staff list, fail-fast validation, repository
 round-trips, derived occupancy, ambulance dispatch, the API's refusal to serve patient data
-without a token — and the four audit scenarios, each running the original's logic and the
-rebuilt system against the same inputs.
+without a token — and the four correctness scenarios, each running the naive implementation and
+Health Haven against the same inputs.
 
 ## Tech stack
 

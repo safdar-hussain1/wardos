@@ -5,11 +5,9 @@ import com.healthhaven.validation.Validate;
 /**
  * An ambulance in the fleet.
  *
- * <p>The original's Ambulance screen was read-only: it printed the table and had
- * a BACK button. You could not dispatch one, and the {@code Availability} column
- * was whatever had last been typed into MySQL. Dispatching is a real operation
- * here, and a unique index on open dispatches stops the same vehicle being sent
- * to two emergencies.
+ * <p>Dispatching is a real operation, not a status column somebody edits: a
+ * unique index on open dispatches stops the same vehicle being sent to two
+ * emergencies at once.
  */
 public final class Ambulance {
 

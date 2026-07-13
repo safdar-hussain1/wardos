@@ -14,7 +14,7 @@ import java.util.List;
 /**
  * Turns a stay into a bill.
  *
- * <p>This is the corrected version of the calculation the original got wrong.
+ * <p>This is the calculation that is most often got wrong, and the reason this class exists at all.
  * The bill is: (nights × the room's nightly rate) + every recorded extra, minus
  * the deposit. Length of stay is central, not absent; the deposit is subtracted
  * once, at the end, not mistaken for the whole charge.

@@ -81,7 +81,7 @@ CREATE TABLE IF NOT EXISTS admissions (
         OR (status = 'DISCHARGED' AND discharged_at IS NOT NULL))
 );
 
--- The bug the original could not prevent: two patients in one bed.
+-- Makes two patients in one bed impossible, rather than merely unlikely.
 CREATE UNIQUE INDEX IF NOT EXISTS uq_active_room
     ON admissions(room_no) WHERE status = 'ACTIVE';
 

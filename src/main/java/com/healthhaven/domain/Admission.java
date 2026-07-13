@@ -9,11 +9,11 @@ import java.util.Optional;
 /**
  * One hospital stay: a patient, a bed, a clock.
  *
- * <p>The original had no such concept. A patient row <em>was</em> the stay, so
- * discharging someone ran {@code delete from Patient_Info}: the hospital forgot
- * the patient existed the moment they walked out, and a returning patient was a
- * brand new person with no history. Here, discharge sets {@link #dischargedAt}
- * and the row stays forever.
+ * <p>Keeping this separate from {@link Patient} is the whole point. Where a
+ * patient row <em>is</em> the stay, discharging someone means deleting them —
+ * the hospital forgets the patient existed the moment they walk out, and a
+ * returning patient is a brand new person with no history. Here, discharge sets
+ * {@link #dischargedAt} and the row stays forever.
  */
 public final class Admission {
 

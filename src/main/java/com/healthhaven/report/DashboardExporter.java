@@ -194,38 +194,37 @@ public final class DashboardExporter {
     }
 
     /**
-     * What the original's billing formula would have charged, across every
-     * invoice this hospital has actually issued, beside what the correct formula
-     * charges.
+     * What the naive billing formula would have charged, across every invoice
+     * this hospital has actually issued, beside what the correct one charges.
      *
-     * <p>The old expression was {@code nightlyRate − deposit}. The nightly rate
-     * is recoverable from a stored invoice as {@code roomTotal / nights}, so the
-     * original's number can be reconstructed for every real stay and the two
-     * totals compared. The gap is the revenue the original silently gave away.
+     * <p>The naive expression is {@code nightlyRate − deposit}. The nightly rate
+     * is recoverable from a stored invoice as {@code roomTotal / nights}, so that
+     * number can be reconstructed for every real stay and the two totals compared.
+     * The gap is the revenue the naive formula silently gives away.
      */
     private Map<String, Object> billingImpact() {
         long correctPaise = 0;
-        long legacyPaise = 0;
+        long naivePaise = 0;
         long negativeBills = 0;
         List<InvoiceRepository.StoredInvoice> invoices = app.invoices().findAll();
         for (InvoiceRepository.StoredInvoice inv : invoices) {
             correctPaise += inv.grossTotal().paise();
 
             long nightlyPaise = inv.roomTotal().paise() / Math.max(1, inv.nights());
-            long legacyPending = nightlyPaise - inv.deposit().paise();
-            // The original showed this figure as the amount owed, sign and all.
-            legacyPaise += nightlyPaise;
-            if (legacyPending < 0) {
+            long naivePending = nightlyPaise - inv.deposit().paise();
+            // The naive screen shows this figure as the amount owed, sign and all.
+            naivePaise += nightlyPaise;
+            if (naivePending < 0) {
                 negativeBills++;
             }
         }
         Map<String, Object> m = new LinkedHashMap<>();
         m.put("invoices", invoices.size());
         m.put("correctGrossRupees", correctPaise / 100);
-        m.put("legacyGrossRupees", legacyPaise / 100);
-        m.put("shortfallRupees", (correctPaise - legacyPaise) / 100);
+        m.put("naiveGrossRupees", naivePaise / 100);
+        m.put("shortfallRupees", (correctPaise - naivePaise) / 100);
         m.put("shortfallPct", correctPaise == 0 ? 0
-                : round((correctPaise - legacyPaise) * 100.0 / correctPaise));
+                : round((correctPaise - naivePaise) * 100.0 / correctPaise));
         m.put("negativeBills", negativeBills);
         return m;
     }
@@ -295,9 +294,9 @@ public final class DashboardExporter {
         m.put("grossTotalRupees", rupees(pick.grossTotal()));
         m.put("depositRupees", rupees(pick.deposit()));
         m.put("balanceRupees", rupees(pick.balanceDue()));
-        // What the original's formula would have printed for this very stay.
+        // What the naive formula would have printed for this very stay.
         long nightlyRupees = rupees(room.nightlyRate());
-        m.put("legacyBalanceRupees", nightlyRupees - rupees(pick.deposit()));
+        m.put("naiveBalanceRupees", nightlyRupees - rupees(pick.deposit()));
         return m;
     }
 

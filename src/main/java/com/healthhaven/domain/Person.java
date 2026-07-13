@@ -9,9 +9,9 @@ import java.time.Period;
  * Everything the hospital knows about a human being, patient or staff.
  *
  * <p>Sealed so that the set of people the system recognises is closed and can be
- * switched over exhaustively. The original had no shared abstraction at all —
- * a patient's name lived in a {@code JTextField} on a {@code JFrame} subclass
- * and nowhere else.
+ * switched over exhaustively. Without an abstraction like this, a patient's
+ * name lives in a {@code JTextField} on a window subclass and nowhere else,
+ * which is how systems end up with no domain model at all.
  */
 public abstract sealed class Person permits Patient, StaffMember {
 

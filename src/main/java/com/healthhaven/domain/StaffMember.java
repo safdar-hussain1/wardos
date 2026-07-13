@@ -8,14 +8,14 @@ import java.util.Optional;
 /**
  * A member of hospital staff.
  *
- * <p>This is where the original project's OOP was supposed to live and did not.
- * {@code Employee_Info.java} was a {@code JFrame} that ran {@code select * from
- * employee} and dropped the rows into a table; there was no employee type, and
- * pay was a number somebody typed into MySQL by hand.
+ * <p>This is where the hierarchy earns its keep. The alternative — a single
+ * {@code Employee} row with a {@code salary} column somebody types in by hand —
+ * has no room for the fact that a doctor's pay, a critical-ward nurse's and a
+ * driver's are computed by three unrelated rules.
  *
- * <p>Here the hierarchy earns its keep: {@link #monthlyPay()} is abstract, and
- * each role computes it from its own rules. {@link com.healthhaven.service.StaffService#payroll}
- * sums a {@code List<StaffMember>} without knowing or asking what any of them are.
+ * <p>So {@link #monthlyPay()} is abstract, and each role answers for itself.
+ * {@link com.healthhaven.service.StaffService#monthlyPayroll} sums a
+ * {@code List<StaffMember>} without knowing or asking what any of them are.
  */
 public abstract sealed class StaffMember extends Person
         permits Doctor, Nurse, Technician, Driver, AdminStaff {

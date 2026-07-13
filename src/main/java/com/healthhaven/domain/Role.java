@@ -5,10 +5,10 @@ import java.util.Set;
 /**
  * Login roles and what each may do.
  *
- * <p>The original had a single {@code login} table and no concept of a role at
- * all: anyone who got past the password screen could do everything, including
- * deleting patient records. Permissions are explicit here and checked in the
- * service layer, not in the UI, so bypassing a disabled button gains nothing.
+ * <p>A system with a {@code login} table and no concept of a role gives everyone
+ * who gets past the password screen the power to do everything, including
+ * destroy records. Permissions are explicit here and checked in the service
+ * layer rather than the UI, so bypassing a disabled button gains nothing.
  */
 public enum Role {
     ADMIN(Set.of(Permission.values())),

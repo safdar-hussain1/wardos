@@ -13,8 +13,9 @@ import java.time.Instant;
  * services, and demo data loaded on first run.
  *
  * <p>This is what lets anyone clone the repo and get a populated, working
- * hospital with one command — the thing the original could never do, because it
- * needed a MySQL server and a hand-built schema before it would start.
+ * hospital with one command. There is no database server to install, no
+ * connection string to configure and no password to leak, because the database
+ * is a file this class creates.
  */
 public final class AppContext {
 

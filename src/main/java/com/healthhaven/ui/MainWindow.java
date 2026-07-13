@@ -41,6 +41,7 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * The main application window: a sidebar of sections and a working panel for
@@ -61,8 +62,8 @@ public final class MainWindow extends JFrame {
         this.app = app;
         this.user = user;
         setDefaultCloseOperation(WindowConstants.EXIT_ON_CLOSE);
-        setSize(1120, 720);
-        setMinimumSize(new Dimension(940, 620));
+        setSize(1280, 820);
+        setMinimumSize(new Dimension(1040, 680));
         setLocationRelativeTo(null);
 
         content.setBackground(Color.WHITE);
@@ -76,6 +77,28 @@ public final class MainWindow extends JFrame {
 
         add(sidebar(), BorderLayout.WEST);
         add(content, BorderLayout.CENTER);
+        add(statusBar(), BorderLayout.SOUTH);
+    }
+
+    /** Who is signed in and what they may do — the permissions are enforced, so say so. */
+    private JComponent statusBar() {
+        JPanel bar = new JPanel(new BorderLayout());
+        bar.setBackground(Theme.MIST);
+        bar.setBorder(BorderFactory.createCompoundBorder(
+                BorderFactory.createMatteBorder(1, 0, 0, 0, Theme.LINE),
+                new EmptyBorder(7, 14, 7, 14)));
+
+        JLabel who = new JLabel(user.fullName() + "  ·  " + user.role());
+        who.setFont(Theme.BODY);
+        who.setForeground(Theme.INK);
+
+        JLabel perms = new JLabel(user.role().permissions().size() + " permissions granted");
+        perms.setFont(Theme.BODY);
+        perms.setForeground(new Color(0x6B, 0x7A, 0x84));
+
+        bar.add(who, BorderLayout.WEST);
+        bar.add(perms, BorderLayout.EAST);
+        return bar;
     }
 
     // -- navigation -----------------------------------------------------------
@@ -150,28 +173,34 @@ public final class MainWindow extends JFrame {
 
         ReportingService r = app.reporting();
         ReportingService.Occupancy occ = r.occupancy();
+        // Compact figures here: the full "₹20,78,200.00" does not fit a stat tile
+        // and silently truncates to "₹20,78,20…", which is worse than rounding.
         JPanel kpis = UiSupport.kpiRow(
                 UiSupport.kpiCard("Patients", String.valueOf(app.patients().count()), Theme.TEAL),
                 UiSupport.kpiCard("Admitted now", String.valueOf(r.activeAdmissionCount()), Theme.TEAL),
                 UiSupport.kpiCard("Occupancy", Math.round(occ.occupancyRate() * 100) + "%", Theme.OCCUPIED),
-                UiSupport.kpiCard("Billed", r.totalBilled().format(), Theme.INK),
-                UiSupport.kpiCard("Payroll / mo", app.staffService().monthlyPayroll().format(), Theme.INK));
+                UiSupport.kpiCard("Mean stay", String.format("%.1fn", r.meanCompletedStayNights()), Theme.INK),
+                UiSupport.kpiCard("Billed", r.totalBilled().formatCompact(), Theme.INK),
+                UiSupport.kpiCard("Payroll / mo", app.staffService().monthlyPayroll().formatCompact(), Theme.INK));
 
-        JPanel body = new JPanel(new GridLayout(1, 2, 16, 0));
+        JPanel body = new JPanel(new GridLayout(1, 3, 16, 0));
         body.setBackground(Color.WHITE);
 
         List<Object[]> deptRows = new ArrayList<>();
         r.activeLoadByDepartment().forEach((dept, n) -> deptRows.add(new Object[]{dept, n}));
-        JPanel left = titled("Active admissions by department",
-                UiSupport.scroll(UiSupport.readOnlyTable(new String[]{"Department", "Admitted"}, deptRows)));
+        body.add(titled("Active admissions by department",
+                card(UiSupport.readOnlyTable(new String[]{"Department", "Admitted"}, deptRows))));
+
+        List<Object[]> wardRows = new ArrayList<>();
+        occ.byType().forEach((type, t) -> wardRows.add(
+                new Object[]{type.label(), t.occupied() + " / " + t.total(), t.available()}));
+        body.add(titled("Beds by ward type",
+                card(UiSupport.readOnlyTable(new String[]{"Ward", "Occupied", "Free"}, wardRows))));
 
         List<Object[]> mixRows = new ArrayList<>();
         r.revenueMix().forEach((kind, money) -> mixRows.add(new Object[]{kind.label(), money.format()}));
-        JPanel right = titled("Revenue by charge type",
-                UiSupport.scroll(UiSupport.readOnlyTable(new String[]{"Charge type", "Total"}, mixRows)));
-
-        body.add(left);
-        body.add(right);
+        body.add(titled("Revenue by charge type",
+                card(UiSupport.readOnlyTable(new String[]{"Charge type", "Total"}, mixRows))));
 
         JPanel centre = new JPanel(new BorderLayout(0, 16));
         centre.setBackground(Color.WHITE);
@@ -179,6 +208,14 @@ public final class MainWindow extends JFrame {
         centre.add(body, BorderLayout.CENTER);
         panel.add(centre, BorderLayout.CENTER);
         return panel;
+    }
+
+    /** A hairline-bordered container, so a short table reads as a card rather than as floating text. */
+    private JComponent card(JComponent body) {
+        JScrollPane pane = new JScrollPane(body);
+        pane.setBorder(BorderFactory.createLineBorder(Theme.LINE));
+        pane.getViewport().setBackground(Color.WHITE);
+        return pane;
     }
 
     private JPanel titled(String title, JComponent body) {
@@ -310,12 +347,12 @@ public final class MainWindow extends JFrame {
 
         JScrollPane holder = new JScrollPane();
         holder.setBorder(BorderFactory.createLineBorder(Theme.LINE));
-        JTable[] tableRef = new JTable[1];
-        List<Admission>[] dataRef = new List[]{new ArrayList<Admission>()};
+        AtomicReference<JTable> tableRef = new AtomicReference<>();
+        AtomicReference<List<Admission>> dataRef = new AtomicReference<>(List.of());
 
         Runnable reload = () -> {
             List<Admission> active = app.admissions().findActive();
-            dataRef[0] = active;
+            dataRef.set(active);
             List<Object[]> rows = new ArrayList<>();
             for (Admission a : active) {
                 Patient p = app.patients().findById(a.patientId()).orElseThrow();
@@ -324,7 +361,7 @@ public final class MainWindow extends JFrame {
             }
             JTable table = UiSupport.readOnlyTable(
                     new String[]{"Adm#", "Patient", "Room", "Nights", "Diagnosis", "Deposit"}, rows);
-            tableRef[0] = table;
+            tableRef.set(table);
             holder.setViewportView(table);
             if (bedGrid != null) {
                 bedGrid.refresh();
@@ -338,10 +375,10 @@ public final class MainWindow extends JFrame {
             }
         });
         JButton quoteBtn = new JButton("Preview bill");
-        quoteBtn.addActionListener(e -> withSelectedAdmission(tableRef[0], dataRef[0], a ->
+        quoteBtn.addActionListener(e -> withSelectedAdmission(tableRef.get(), dataRef.get(), a ->
                 showInvoice("Current bill", app.admissionService().quote(a))));
         JButton dischargeBtn = new JButton("Discharge & bill");
-        dischargeBtn.addActionListener(e -> withSelectedAdmission(tableRef[0], dataRef[0], a -> {
+        dischargeBtn.addActionListener(e -> withSelectedAdmission(tableRef.get(), dataRef.get(), a -> {
             try {
                 app.auth().require(user, com.healthhaven.domain.Permission.DISCHARGE_PATIENT);
                 Invoice invoice = app.admissionService().discharge(a);
@@ -459,24 +496,24 @@ public final class MainWindow extends JFrame {
 
         JScrollPane holder = new JScrollPane();
         holder.setBorder(BorderFactory.createLineBorder(Theme.LINE));
-        JTable[] tableRef = new JTable[1];
-        List<Ambulance>[] dataRef = new List[]{new ArrayList<Ambulance>()};
+        AtomicReference<JTable> tableRef = new AtomicReference<>();
+        AtomicReference<List<Ambulance>> dataRef = new AtomicReference<>(List.of());
 
         Runnable reload = () -> {
             List<Ambulance> fleet = app.ambulanceService().fleet();
-            dataRef[0] = fleet;
+            dataRef.set(fleet);
             List<Object[]> rows = new ArrayList<>();
             for (Ambulance a : fleet) {
                 rows.add(new Object[]{a.vehicleNo(), a.driverName(), a.status(), a.baseLocation()});
             }
             JTable table = UiSupport.readOnlyTable(
                     new String[]{"Vehicle", "Driver", "Status", "Base"}, rows);
-            tableRef[0] = table;
+            tableRef.set(table);
             holder.setViewportView(table);
         };
 
         JButton dispatch = new JButton("Dispatch");
-        dispatch.addActionListener(e -> withSelectedAmbulance(tableRef[0], dataRef[0], a -> {
+        dispatch.addActionListener(e -> withSelectedAmbulance(tableRef.get(), dataRef.get(), a -> {
             String dest = JOptionPane.showInputDialog(this, "Destination for " + a.vehicleNo() + ":");
             if (dest != null && !dest.isBlank()) {
                 try {
@@ -488,7 +525,7 @@ public final class MainWindow extends JFrame {
             }
         }));
         JButton recall = new JButton("Recall");
-        recall.addActionListener(e -> withSelectedAmbulance(tableRef[0], dataRef[0], a -> {
+        recall.addActionListener(e -> withSelectedAmbulance(tableRef.get(), dataRef.get(), a -> {
             try {
                 app.ambulanceService().recall(a.id());
                 reload.run();
@@ -520,7 +557,7 @@ public final class MainWindow extends JFrame {
     private JPanel auditPanel() {
         JPanel panel = new JPanel(new BorderLayout(0, 12));
         panel.setBackground(Color.WHITE);
-        panel.add(pageTitle("Original vs rebuilt — audit"), BorderLayout.NORTH);
+        panel.add(pageTitle("Correctness — the naive approach vs Health Haven"), BorderLayout.NORTH);
 
         JTextArea area = new JTextArea();
         area.setFont(Theme.MONO);
@@ -528,8 +565,8 @@ public final class MainWindow extends JFrame {
         StringBuilder sb = new StringBuilder();
         for (AuditReport.Finding f : new AuditReport().run()) {
             sb.append('[').append(f.id()).append("]  ").append(f.title()).append('\n');
-            sb.append("   original : ").append(f.legacyResult()).append('\n');
-            sb.append("   rebuilt  : ").append(f.rebuiltResult()).append('\n');
+            sb.append("   naive        : ").append(f.naiveResult()).append('\n');
+            sb.append("   health haven : ").append(f.healthHavenResult()).append('\n');
             sb.append("   impact   : ").append(f.impact()).append("\n\n");
         }
         area.setText(sb.toString());

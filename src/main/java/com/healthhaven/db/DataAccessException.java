@@ -3,10 +3,11 @@ package com.healthhaven.db;
 /**
  * A database call failed.
  *
- * <p>The original caught {@code SQLException} in forty-odd places and called
- * {@code e.printStackTrace()} — the user saw nothing, the operation silently did
- * not happen, and the screen carried on as though it had. Failures here
- * propagate.
+ * <p>Unchecked, and deliberately never swallowed. The tempting alternative —
+ * catching {@code SQLException} at each call site and calling {@code
+ * e.printStackTrace()} — means the user sees nothing, the operation silently does
+ * not happen, and the screen carries on as though it had. Failures here
+ * propagate until something can genuinely handle them.
  */
 public class DataAccessException extends RuntimeException {
 

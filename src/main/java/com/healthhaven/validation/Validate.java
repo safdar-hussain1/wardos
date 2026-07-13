@@ -9,12 +9,11 @@ import java.util.regex.Pattern;
 /**
  * Fail-fast checks used by every constructor in the domain.
  *
- * <p>The original validated nothing anywhere. A blank name, a deposit of
- * "abc", a room number that did not exist — all of them went straight into an
- * {@code INSERT}, and the first thing to notice was a {@code NumberFormatException}
- * printed to a console nobody was watching (every catch block in the old code was
- * {@code e.printStackTrace()}). Objects here cannot be constructed in an invalid
- * state, so nothing downstream has to wonder.
+ * <p>Without these, a blank name, a deposit of "abc" and a room number that does
+ * not exist all go straight into an {@code INSERT}, and the first sign of trouble
+ * is a {@code NumberFormatException} on a console nobody is watching. Objects
+ * here cannot be constructed in an invalid state, so nothing downstream has to
+ * wonder whether they are.
  */
 public final class Validate {
 

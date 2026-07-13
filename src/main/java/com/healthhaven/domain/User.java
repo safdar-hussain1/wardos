@@ -8,10 +8,9 @@ import java.time.Instant;
  * A login account.
  *
  * <p>The password hash never leaves the persistence layer as anything but a
- * hash, and this class exposes no getter for it: nothing above the repository
- * can read it, log it, or accidentally put it in a table model. The original
- * stored passwords in plain text in a {@code login} table and compared them by
- * pasting them into a SQL string.
+ * hash, and this class exposes no getter for it at all: nothing above the
+ * repository can read it, log it, or accidentally drop it into a table model.
+ * You cannot leak what you cannot reach.
  */
 public final class User {
 

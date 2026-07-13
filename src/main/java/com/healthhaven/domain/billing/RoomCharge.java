@@ -6,14 +6,13 @@ import com.healthhaven.domain.Room;
 /**
  * Room and board for a stay: nights × the room's nightly rate.
  *
- * <p>This one line is the fix for the original's worst bug. {@code
- * Update_Patient_Details.java} computed what it called the pending amount as
- * {@code Integer.parseInt(room.Price) - Integer.parseInt(deposit)} — the room's
- * <em>nightly</em> rate minus the deposit, with the length of stay nowhere in
- * the expression. A three-week ICU stay and an overnight stay in the same bed
- * produced the same bill, and any deposit larger than one night's rate produced
- * a negative "pending amount", which the screen happily displayed as though the
- * hospital owed the patient money.
+ * <p>The multiplication is the entire point of this class. The tempting version
+ * of a bill is {@code rate − deposit}, which reads perfectly well until you
+ * notice that {@code rate} is the price of a <em>single night</em> and the length
+ * of the stay is nowhere in it. A three-week ICU stay and one night in the same
+ * bed then cost exactly the same, and any deposit larger than one night's rate
+ * turns the result negative — a bill claiming the hospital owes the patient
+ * money.
  */
 public final class RoomCharge implements BillableItem {
 

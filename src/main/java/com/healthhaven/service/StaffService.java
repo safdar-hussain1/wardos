@@ -17,7 +17,7 @@ import java.util.stream.Collectors;
  * monthlyPay()} on each, and never asks what anyone is — a doctor's specialty
  * allowance, a nurse's ward hazard pay, and a driver's flat travel allowance are
  * each computed by the object itself. Adding a new staff type does not touch this
- * method. The original had no staff types and no payroll at all; it printed the
+ * method. A design with no staff types has no payroll either: it can only print the
  * {@code employee} table and stopped.
  */
 public final class StaffService {

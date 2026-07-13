@@ -5,10 +5,10 @@ import java.util.Objects;
 /**
  * An amount of Indian rupees, held as an integral number of paise.
  *
- * <p>The original system stored money as {@code VARCHAR} and parsed it with
- * {@code Integer.parseInt} at the point of use, so a stray space or a decimal
- * point crashed the screen it was on. Money is a value object here: immutable,
- * exact, and impossible to construct from a malformed string without an error.
+ * <p>Storing money as text and calling {@code Integer.parseInt} on it at the
+ * point of use means a stray space or a decimal point crashes whichever screen
+ * happens to be showing it. Money is a value object here: immutable, exact, and
+ * impossible to construct from a malformed string without an error.
  */
 public final class Money implements Comparable<Money> {
 
@@ -83,6 +83,27 @@ public final class Money implements Comparable<Money> {
         String rupees = groupIndian(abs / 100);
         long frac = abs % 100;
         return (paise < 0 ? "-₹" : "₹") + rupees + String.format(".%02d", frac);
+    }
+
+    /**
+     * A short form for dashboards and stat tiles, where the full figure would be
+     * truncated: "₹20.8L", "₹1.2Cr", "₹4,500".
+     */
+    public String formatCompact() {
+        long abs = Math.abs(paise) / 100;
+        String sign = paise < 0 ? "-" : "";
+        if (abs >= 1_00_00_000L) {
+            return sign + "₹" + trim(abs / 1_00_00_000.0) + "Cr";
+        }
+        if (abs >= 1_00_000L) {
+            return sign + "₹" + trim(abs / 1_00_000.0) + "L";
+        }
+        return sign + "₹" + groupIndian(abs);
+    }
+
+    private static String trim(double value) {
+        String s = String.format("%.1f", value);
+        return s.endsWith(".0") ? s.substring(0, s.length() - 2) : s;
     }
 
     private static String groupIndian(long value) {
