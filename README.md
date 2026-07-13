@@ -4,7 +4,7 @@ A hospital management system in Java: patients, admissions, wards, billing, staf
 ambulance dispatch and an append-only audit log — behind a layered domain model, a SQLite
 database, and three interfaces (desktop app, CLI, JSON API).
 
-**[▶ Live dashboard](https://safdar-hussain1.github.io/health-haven/)** · 76 source files · 30 tests · zero setup (`mvn package && java -jar target/health-haven.jar`)
+**[▶ Live dashboard](https://safdar-hussain1.github.io/health-haven/)** · 35 tests · zero setup (`mvn package && java -jar target/health-haven.jar`)
 
 <p align="center">
   <img src="docs/screenshots/desktop-wards.png" width="49%" alt="Ward bed grid">
@@ -140,7 +140,7 @@ seeded on first run into `data/health-haven.db`.
 ```bash
 git clone https://github.com/safdar-hussain1/health-haven.git
 cd health-haven
-mvn package                                   # compiles, runs 30 tests, builds the fat jar
+mvn package                                   # compiles, runs 35 tests, builds the fat jar
 ```
 
 Then pick an interface:
@@ -148,9 +148,17 @@ Then pick an interface:
 ```bash
 java -jar target/health-haven.jar             # desktop app (Swing + FlatLaf)
 java -jar target/health-haven.jar cli help    # console
-java -jar target/health-haven.jar serve 8080  # JSON API on http://localhost:8080/api/summary
+java -jar target/health-haven.jar serve 8080  # JSON API (loopback, bearer token)
 java -jar target/health-haven.jar audit       # the original-vs-rebuilt audit, live
 java -jar target/health-haven.jar export      # regenerate docs/data/dashboard.json
+```
+
+The API serves patient names, MRNs and diagnoses, so it is not open: it binds to
+loopback only, and every `/api` route needs a bearer token, which `serve` prints at startup
+(or set `HEALTH_HAVEN_API_TOKEN` to pin it).
+
+```bash
+curl -H "Authorization: Bearer $HEALTH_HAVEN_API_TOKEN" http://localhost:8080/api/summary
 ```
 
 Demo logins (seeded, and shown on the login screen): `admin` / `changeme-admin`,
@@ -199,7 +207,7 @@ health-haven/
 │   ├── cli/  ui/  web/  the three surfaces
 │   └── Main.java        entry point / dispatcher
 ├── src/main/resources/db/schema.sql
-├── src/test/java/       30 tests, incl. the legacy-vs-rebuilt audit
+├── src/test/java/       35 tests, incl. the legacy-vs-rebuilt audit
 └── docs/                dashboard (index.html + data/dashboard.json), design notes
 ```
 
@@ -221,13 +229,14 @@ must never break live in [`schema.sql`](src/main/resources/db/schema.sql):
 ## Tests
 
 ```bash
-mvn test        # 30 tests
+mvn test        # 35 tests
 ```
 
 They cover the `Money` value object, billing arithmetic (including the round-up-and-never-zero
 night rule), polymorphic payroll over a mixed staff list, fail-fast validation, repository
-round-trips, derived occupancy, ambulance dispatch — and the four audit scenarios, each
-running the original's logic and the rebuilt system against the same inputs.
+round-trips, derived occupancy, ambulance dispatch, the API's refusal to serve patient data
+without a token — and the four audit scenarios, each running the original's logic and the
+rebuilt system against the same inputs.
 
 ## Tech stack
 

@@ -44,8 +44,15 @@ public final class Main {
         HealthHaven app = AppContext.openOnDisk(AppContext.defaultDatabasePath());
         ApiServer server = new ApiServer(app, port);
         server.start();
-        System.out.println("Health Haven API listening on http://localhost:" + port + "/api/summary");
-        System.out.println("Press Ctrl+C to stop.");
+        System.out.println("Health Haven API listening on http://localhost:" + port + " (loopback only)");
+        System.out.println();
+        System.out.println("This API serves patient data. Every /api route needs the bearer token:");
+        System.out.println("  " + server.token());
+        System.out.println();
+        System.out.println("  curl -H \"Authorization: Bearer " + server.token() + "\" \\");
+        System.out.println("       http://localhost:" + port + "/api/summary");
+        System.out.println();
+        System.out.println("Set HEALTH_HAVEN_API_TOKEN to pin the token across restarts. Ctrl+C to stop.");
         Thread.currentThread().join();
     }
 

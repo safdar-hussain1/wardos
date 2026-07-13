@@ -86,6 +86,11 @@ admission points at it — occupancy is a query, not a column somebody remembere
   typed into the form — the Aadhaar number was the join key across the database. Here the primary
   key is a hospital-issued MRN and only the last four digits of the ID document are retained,
   enough to confirm which card was seen and not enough to be worth stealing.
+- **The API is not open.** It serves patient names, MRNs and diagnoses, so it binds to loopback
+  only, requires a bearer token on every `/api` route (compared in constant time, because a
+  compare that returns early leaks the token one character at a time), and sends no
+  `Access-Control-Allow-Origin` header — an earlier draft sent `*`, which would have let any web
+  page the operator happened to visit read the ward list.
 - **Append-only audit log.** Every mutation records actor, action, entity, id and timestamp.
   Nothing in `audit_log` is ever updated or deleted. The original had no audit trail at all, which
   is how a `DELETE` on discharge went unnoticed.

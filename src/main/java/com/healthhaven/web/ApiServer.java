@@ -12,10 +12,14 @@ import com.sun.net.httpserver.HttpServer;
 
 import java.io.IOException;
 import java.io.OutputStream;
+import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.SecureRandom;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Base64;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -24,30 +28,67 @@ import java.util.Map;
  * A small read-only JSON API over the hospital, on the JDK's built-in HTTP
  * server — no web framework, no extra dependency.
  *
- * <p>It exists so the system is usable as a service, not only as a desktop app:
- * point anything that speaks HTTP at {@code /api/summary}, {@code /api/beds},
- * {@code /api/patients} and so on. The same seeded data that the dashboard shows
- * is served here live.
+ * <p><b>This endpoint serves patient data, so it is not open.</b> Three things
+ * guard it, and they are worth stating because the obvious version of this class
+ * had none of them:
+ *
+ * <ul>
+ *   <li>it binds to <b>loopback only</b>, so it is not reachable from the
+ *       network unless someone deliberately puts a proxy in front of it;</li>
+ *   <li>every {@code /api/*} request must carry {@code Authorization: Bearer
+ *       <token>}, compared in <b>constant time</b>. The token comes from
+ *       {@code HEALTH_HAVEN_API_TOKEN} or is generated and printed at startup;</li>
+ *   <li>there is <b>no CORS header</b>. An earlier draft sent
+ *       {@code Access-Control-Allow-Origin: *}, which would have invited any web
+ *       page the operator happened to visit to read the ward list.</li>
+ * </ul>
+ *
+ * <p>Diagnoses are the most sensitive field here and are only served on
+ * {@code /api/admissions}, which — like every other route — requires the token.
  */
 public final class ApiServer {
 
+    private static final String TOKEN_ENV = "HEALTH_HAVEN_API_TOKEN";
+
     private final HealthHaven app;
     private final int port;
+    private final String token;
     private HttpServer server;
 
     public ApiServer(HealthHaven app, int port) {
+        this(app, port, resolveToken());
+    }
+
+    public ApiServer(HealthHaven app, int port, String token) {
         this.app = app;
         this.port = port;
+        this.token = token;
+    }
+
+    /** The bearer token this server will accept. Printed at startup when generated. */
+    public String token() {
+        return token;
+    }
+
+    private static String resolveToken() {
+        String configured = System.getenv(TOKEN_ENV);
+        if (configured != null && !configured.isBlank()) {
+            return configured.trim();
+        }
+        byte[] random = new byte[32];
+        new SecureRandom().nextBytes(random);
+        return Base64.getUrlEncoder().withoutPadding().encodeToString(random);
     }
 
     public void start() throws IOException {
-        server = HttpServer.create(new InetSocketAddress(port), 0);
-        server.createContext("/api/summary", json(this::summary));
-        server.createContext("/api/beds", json(e -> beds()));
-        server.createContext("/api/patients", json(e -> patients()));
-        server.createContext("/api/admissions", json(e -> admissions()));
-        server.createContext("/api/staff", json(e -> staff()));
-        server.createContext("/api/audit", json(e -> new com.healthhaven.report.AuditReport().asData()));
+        // Loopback only. Binding 0.0.0.0 would put the ward list on the network.
+        server = HttpServer.create(new InetSocketAddress(InetAddress.getLoopbackAddress(), port), 0);
+        server.createContext("/api/summary", secured(e -> summary()));
+        server.createContext("/api/beds", secured(e -> beds()));
+        server.createContext("/api/patients", secured(e -> patients()));
+        server.createContext("/api/admissions", secured(e -> admissions()));
+        server.createContext("/api/staff", secured(e -> staff()));
+        server.createContext("/api/audit", secured(e -> new com.healthhaven.report.AuditReport().asData()));
         server.createContext("/", ApiServer::index);
         server.setExecutor(null);
         server.start();
@@ -59,7 +100,7 @@ public final class ApiServer {
         }
     }
 
-    private Object summary(HttpExchange exchange) {
+    private Object summary() {
         ReportingService r = app.reporting();
         ReportingService.Occupancy occ = r.occupancy();
         Map<String, Object> m = new LinkedHashMap<>();
@@ -134,31 +175,53 @@ public final class ApiServer {
         Object handle(HttpExchange exchange);
     }
 
-    private static com.sun.net.httpserver.HttpHandler json(Handler handler) {
+    /** Wraps a handler in bearer-token authentication. */
+    private com.sun.net.httpserver.HttpHandler secured(Handler handler) {
         return exchange -> {
+            if (!isAuthorised(exchange)) {
+                // Say nothing about why. A 401 that explains itself is a hint.
+                respond(exchange, 401, "{\"error\":\"unauthorised\"}");
+                return;
+            }
             try {
-                Object result = handler.handle(exchange);
-                byte[] body = Json.write(result).getBytes(StandardCharsets.UTF_8);
-                exchange.getResponseHeaders().add("Content-Type", "application/json; charset=utf-8");
-                exchange.getResponseHeaders().add("Access-Control-Allow-Origin", "*");
-                exchange.sendResponseHeaders(200, body.length);
-                try (OutputStream os = exchange.getResponseBody()) {
-                    os.write(body);
-                }
+                respond(exchange, 200, Json.write(handler.handle(exchange)));
             } catch (Exception e) {
-                byte[] body = ("{\"error\":\"" + e.getMessage() + "\"}").getBytes(StandardCharsets.UTF_8);
-                exchange.sendResponseHeaders(500, body.length);
-                try (OutputStream os = exchange.getResponseBody()) {
-                    os.write(body);
-                }
+                respond(exchange, 500, "{\"error\":\"request failed\"}");
             }
         };
     }
 
+    private boolean isAuthorised(HttpExchange exchange) {
+        String header = exchange.getRequestHeaders().getFirst("Authorization");
+        if (header == null || !header.startsWith("Bearer ")) {
+            return false;
+        }
+        String presented = header.substring("Bearer ".length()).trim();
+        // Constant-time: a byte-by-byte compare that returns early leaks the token
+        // one character at a time to anyone willing to time the responses.
+        return MessageDigest.isEqual(
+                presented.getBytes(StandardCharsets.UTF_8),
+                token.getBytes(StandardCharsets.UTF_8));
+    }
+
+    private static void respond(HttpExchange exchange, int status, String body) throws IOException {
+        byte[] bytes = body.getBytes(StandardCharsets.UTF_8);
+        exchange.getResponseHeaders().add("Content-Type", "application/json; charset=utf-8");
+        // No Access-Control-Allow-Origin: this data is not for other people's web pages.
+        exchange.getResponseHeaders().add("Cache-Control", "no-store");
+        exchange.sendResponseHeaders(status, bytes.length);
+        try (OutputStream os = exchange.getResponseBody()) {
+            os.write(bytes);
+        }
+    }
+
     private static void index(HttpExchange exchange) throws IOException {
         String body = """
-                Health Haven API
-                ================
+                Health Haven API — every /api route requires a bearer token.
+
+                  curl -H "Authorization: Bearer $HEALTH_HAVEN_API_TOKEN" \\
+                       http://localhost:8080/api/summary
+
                 GET /api/summary      hospital status
                 GET /api/beds         every room and its state
                 GET /api/patients     registered patients
