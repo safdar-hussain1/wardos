@@ -1,4 +1,4 @@
-import { useEffect, useState, useSyncExternalStore } from 'react'
+import { useEffect, useRef, useState, useSyncExternalStore } from 'react'
 import { store } from './store'
 import type { AppState } from './store'
 import { maybeRunSelftest } from './selftest'
@@ -37,9 +37,36 @@ function maybeAutoLogin(state: AppState): void {
   store.login(account.username, account.password)
 }
 
+/**
+ * Companion to `?as=`: `?screen=<key>` picks the initial screen for the
+ * *first* session of the page load (keys: deck, wards/ward, billing,
+ * payroll, ambulances, audit, time-machine, about) — what makes every
+ * screen directly reachable for headless screenshots and deep links.
+ * Consumed once; later logins land on the command deck as usual.
+ */
+const SCREEN_URL_KEYS: Record<string, ScreenKey> = {
+  deck: 'deck',
+  wards: 'ward',
+  ward: 'ward',
+  billing: 'billing',
+  payroll: 'payroll',
+  ambulances: 'ambulances',
+  audit: 'audit',
+  'time-machine': 'time-machine',
+  about: 'about',
+}
+
+function screenFromUrl(): ScreenKey | null {
+  if (typeof window === 'undefined') return null
+  const key = new URLSearchParams(window.location.search).get('screen')
+  if (key === null) return null
+  return SCREEN_URL_KEYS[key.toLowerCase()] ?? null
+}
+
 export default function App() {
   const state = useSyncExternalStore(store.subscribe, store.get)
   const [screen, setScreen] = useState<ScreenKey>('deck')
+  const urlScreenRef = useRef(screenFromUrl())
 
   useEffect(() => {
     void store.boot().then(() => {
@@ -51,10 +78,15 @@ export default function App() {
   // A fresh login (including a different role after logout→login) always
   // lands on the command deck — visible to every role, so a new session
   // never lands on a screen the just-logged-in role can't see (the nav
-  // guard would still catch it, but this is the better default).
+  // guard would still catch it, but this is the better default). The one
+  // exception: a `?screen=` deep link steers the first session once.
+  const actorId = state.actor?.userId
   useEffect(() => {
-    setScreen('deck')
-  }, [state.actor?.userId])
+    if (actorId === undefined) return
+    const fromUrl = urlScreenRef.current
+    urlScreenRef.current = null
+    setScreen(fromUrl ?? 'deck')
+  }, [actorId])
 
   if (state.status === 'booting') {
     return (

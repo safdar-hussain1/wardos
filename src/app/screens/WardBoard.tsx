@@ -3,6 +3,7 @@ import type { Engine, Actor, BedView } from '../../core/engine'
 import { bedGrid } from '../viewmodels'
 import AdmitDialog from './AdmitDialog'
 import PatientChart from './PatientChart'
+import { WARD_LABELS } from './wardLabels'
 
 export default function WardBoard({ engine, actor }: { engine: Engine; actor: Actor }) {
   const [admitBed, setAdmitBed] = useState<BedView | null>(null)
@@ -30,9 +31,12 @@ export default function WardBoard({ engine, actor }: { engine: Engine; actor: Ac
       {groups.map((group) => (
         <div key={group.ward} className="ward-group">
           <h2>
-            {group.ward}
+            <span className="ward-code" aria-hidden="true">
+              {group.ward.charAt(0)}
+            </span>
+            {WARD_LABELS[group.ward] ?? group.ward}
             <span className="ward-counts">
-              {group.freeCount} free / {group.occupiedCount} occupied
+              <strong>{group.freeCount}</strong> free · <strong>{group.occupiedCount}</strong> occupied
             </span>
           </h2>
           <div className="bed-row">
@@ -43,8 +47,8 @@ export default function WardBoard({ engine, actor }: { engine: Engine; actor: Ac
                 className={`bed-cell ${bed.occupied ? 'bed-cell--occupied' : 'bed-cell--free'}`}
                 onClick={() => handleBedClick(bed)}
               >
-                <strong>{bed.label}</strong>
-                <span>{bed.occupied ? bed.patientName : 'Free'}</span>
+                <strong className="bed-cell__label">{bed.label}</strong>
+                <span className="bed-cell__who">{bed.occupied ? bed.patientName : 'Free'}</span>
               </button>
             ))}
           </div>

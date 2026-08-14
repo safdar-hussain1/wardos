@@ -5,6 +5,7 @@ import type { EventRow } from '../../core/events'
 import { ANCHOR_ISO } from '../../core/clock'
 import { WARD_ORDER, timeMachineVm } from '../viewmodels'
 import { formatINR, formatDateIST } from '../format'
+import { WARD_LABELS } from './wardLabels'
 
 const DAY_MS = 86_400_000
 const PLAY_INTERVAL_MS = 150
@@ -73,12 +74,6 @@ export default function TimeMachine({ engine }: { engine: Engine }) {
 
   return (
     <section className="time-machine">
-      <h2>Time machine</h2>
-      <p className="time-machine-intro">
-        Scrub across six months of the hospital&apos;s history — every number below is a pure replay of the
-        event log up to the selected instant, never a query against the live database.
-      </p>
-
       <div className="scrubber">
         <button type="button" className="scrubber-play" onClick={handlePlayToggle} aria-pressed={isPlaying}>
           {isPlaying ? 'Pause' : 'Play'}
@@ -126,14 +121,17 @@ export default function TimeMachine({ engine }: { engine: Engine }) {
       </div>
 
       <section className="deck-section" aria-label="Ward board at the scrubbed instant">
-        <h2>Ward board</h2>
+        <h2>Ward board at this instant</h2>
         {bedsByWard.map((group) => (
-          <div key={group.ward} className="ward-group">
+          <div key={group.ward} className="ward-group ward-group--mini">
             <h3>
-              {group.ward}
+              <span className="ward-code" aria-hidden="true">
+                {group.ward.charAt(0)}
+              </span>
+              {WARD_LABELS[group.ward] ?? group.ward}
               <span className="ward-counts">
-                {group.beds.filter((b) => !b.occupied).length} free / {group.beds.filter((b) => b.occupied).length}{' '}
-                occupied
+                <strong>{group.beds.filter((b) => !b.occupied).length}</strong> free ·{' '}
+                <strong>{group.beds.filter((b) => b.occupied).length}</strong> occupied
               </span>
             </h3>
             <div className="bed-row bed-row--mini">

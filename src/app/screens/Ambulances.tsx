@@ -68,8 +68,6 @@ export default function Ambulances({ engine, actor }: { engine: Engine; actor: A
 
   return (
     <section className="ambulances">
-      <h2>Ambulance fleet</h2>
-
       {banner !== null && (
         <p className="error-banner" role="alert">
           {banner}
@@ -90,7 +88,7 @@ export default function Ambulances({ engine, actor }: { engine: Engine; actor: A
 
             {amb.openDispatch ? (
               <>
-                <p className="ambulance-status">Dispatched to {amb.openDispatch.location}</p>
+                <p className="ambulance-status ambulance-status--out">Dispatched to {amb.openDispatch.location}</p>
                 <p className="ambulance-since">Since {formatDateTimeIST(amb.openDispatch.dispatchedAt)}</p>
                 {canReturn && (
                   <button type="button" onClick={() => handleReturn(amb.openDispatch!.id)}>
@@ -100,7 +98,7 @@ export default function Ambulances({ engine, actor }: { engine: Engine; actor: A
               </>
             ) : (
               <>
-                <p className="ambulance-status">Free</p>
+                <p className="ambulance-status ambulance-status--free">On station</p>
                 {canDispatch &&
                   (dispatchFormFor === amb.id ? (
                     <form className="dispatch-form" onSubmit={(evt) => handleDispatch(evt, amb.id)}>

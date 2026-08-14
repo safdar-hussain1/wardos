@@ -74,15 +74,16 @@ export default function BillingDesk({ engine, actor }: { engine: Engine; actor: 
         {vm.active.length === 0 ? (
           <p>No active admissions.</p>
         ) : (
+          <div className="table-scroll">
           <table className="billing-table">
             <thead>
               <tr>
                 <th>Patient</th>
                 <th>Bed</th>
-                <th>Nights so far</th>
-                <th>Running total</th>
-                <th>Deposit</th>
-                <th>Projected</th>
+                <th className="num">Nights</th>
+                <th className="num">Running total</th>
+                <th className="num">Deposit</th>
+                <th className="num">Projected</th>
                 {vm.permittedActions.recordDeposit && <th>Record deposit</th>}
               </tr>
             </thead>
@@ -98,11 +99,11 @@ export default function BillingDesk({ engine, actor }: { engine: Engine; actor: 
                       {row.patientName} · {row.mrn}
                     </button>
                   </td>
-                  <td>{row.bedLabel}</td>
-                  <td>{row.preview.nights}</td>
-                  <td>{formatINR(addP(row.preview.roomTotalPaise, row.preview.extrasTotalPaise))}</td>
-                  <td>{formatINR(row.preview.depositPaise)}</td>
-                  <td className={row.preview.isRefund ? 'refund-due' : 'balance-due'}>
+                  <td className="cell-bed">{row.bedLabel}</td>
+                  <td className="num">{row.preview.nights}</td>
+                  <td className="num">{formatINR(addP(row.preview.roomTotalPaise, row.preview.extrasTotalPaise))}</td>
+                  <td className="num">{formatINR(row.preview.depositPaise)}</td>
+                  <td className={`num ${row.preview.isRefund ? 'refund-due' : 'balance-due'}`}>
                     {row.preview.isRefund
                       ? `Refund ${formatINR(row.preview.refundPaise)}`
                       : `Balance ${formatINR(row.preview.balancePaise)}`}
@@ -132,6 +133,7 @@ export default function BillingDesk({ engine, actor }: { engine: Engine; actor: 
               ))}
             </tbody>
           </table>
+          </div>
         )}
       </section>
 
@@ -140,12 +142,13 @@ export default function BillingDesk({ engine, actor }: { engine: Engine; actor: 
         {vm.discharged.length === 0 ? (
           <p>No discharged invoices yet.</p>
         ) : (
+          <div className="table-scroll">
           <table className="billing-table">
             <thead>
               <tr>
                 <th>Patient</th>
                 <th>Bed</th>
-                <th>Balance</th>
+                <th className="num">Balance</th>
                 <th>Status</th>
               </tr>
             </thead>
@@ -161,17 +164,18 @@ export default function BillingDesk({ engine, actor }: { engine: Engine; actor: 
                       {row.patientName} · {row.mrn}
                     </button>
                   </td>
-                  <td>{row.bedLabel}</td>
-                  <td className={row.invoice.isRefund ? 'refund-due' : 'balance-due'}>
+                  <td className="cell-bed">{row.bedLabel}</td>
+                  <td className={`num ${row.invoice.isRefund ? 'refund-due' : 'balance-due'}`}>
                     {row.invoice.isRefund ? `Refund ${formatINR(row.invoice.refundPaise)}` : formatINR(row.invoice.balancePaise)}
                   </td>
                   <td>
-                    <span className="frozen-badge">FROZEN</span>
+                    <span className="frozen-badge">Frozen</span>
                   </td>
                 </tr>
               ))}
             </tbody>
           </table>
+          </div>
         )}
       </section>
 

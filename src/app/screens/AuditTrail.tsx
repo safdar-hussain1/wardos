@@ -27,8 +27,6 @@ export default function AuditTrail({ engine, actor }: { engine: Engine; actor: A
 
   return (
     <section className="audit-trail">
-      <h2>Audit trail</h2>
-
       <div className="audit-controls">
         <label>
           Filter by action
@@ -47,6 +45,7 @@ export default function AuditTrail({ engine, actor }: { engine: Engine; actor: A
       {vm.rows.length === 0 ? (
         <p>No events match this filter.</p>
       ) : (
+        <div className="table-scroll">
         <table className="audit-table">
           <thead>
             <tr>
@@ -64,9 +63,11 @@ export default function AuditTrail({ engine, actor }: { engine: Engine; actor: A
                   className="audit-row"
                   onClick={() => setExpandedId((id) => (id === row.id ? null : row.id))}
                 >
-                  <td>{formatDateTimeIST(row.atIso)}</td>
+                  <td className="cell-time">{formatDateTimeIST(row.atIso)}</td>
                   <td>{row.actorUsername}</td>
-                  <td>{row.action}</td>
+                  <td>
+                    <span className="event-chip">{row.action}</span>
+                  </td>
                   <td>
                     {row.entity}
                     {row.entityId !== null ? `#${row.entityId}` : ''}
@@ -84,6 +85,7 @@ export default function AuditTrail({ engine, actor }: { engine: Engine; actor: A
             ))}
           </tbody>
         </table>
+        </div>
       )}
 
       <div className="audit-pager">

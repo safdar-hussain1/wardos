@@ -1,6 +1,7 @@
 import type { Engine } from '../../core/engine'
 import { deckVm } from '../viewmodels'
 import { formatINR, formatDateTimeIST } from '../format'
+import { WARD_LABELS } from './wardLabels'
 
 const KIND_LABELS: Record<string, string> = {
   PROCEDURE: 'Procedures',
@@ -56,7 +57,7 @@ export default function CommandDeck({ engine }: { engine: Engine }) {
           <div className="occupancy-bars">
             {vm.occupancyByWard.map((w) => (
               <div key={w.ward} className="occupancy-bar-row">
-                <span className="occupancy-bar-row__label">{w.ward}</span>
+                <span className="occupancy-bar-row__label">{WARD_LABELS[w.ward] ?? w.ward}</span>
                 <div className="bar-track">
                   <div
                     className="bar-fill"
@@ -95,6 +96,7 @@ export default function CommandDeck({ engine }: { engine: Engine }) {
         {vm.recentEvents.length === 0 ? (
           <p>No events yet.</p>
         ) : (
+          <div className="table-scroll">
           <table className="deck-events-table">
             <thead>
               <tr>
@@ -106,8 +108,10 @@ export default function CommandDeck({ engine }: { engine: Engine }) {
             <tbody>
               {vm.recentEvents.map((e) => (
                 <tr key={e.id}>
-                  <td>{formatDateTimeIST(e.at)}</td>
-                  <td>{e.action}</td>
+                  <td className="cell-time">{formatDateTimeIST(e.at)}</td>
+                  <td>
+                    <span className="event-chip">{e.action}</span>
+                  </td>
                   <td>
                     {e.entity}
                     {e.entityId !== null ? `#${e.entityId}` : ''}
@@ -116,6 +120,7 @@ export default function CommandDeck({ engine }: { engine: Engine }) {
               ))}
             </tbody>
           </table>
+          </div>
         )}
       </section>
     </section>

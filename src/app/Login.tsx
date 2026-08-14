@@ -27,8 +27,16 @@ export default function Login({ error }: { error?: string }) {
 
   return (
     <main className="login-shell">
-      <h1>WardOS</h1>
-      <p className="login-tagline">Sign in to the demo hospital</p>
+      <div className="brand brand--login">
+        <svg className="brand-mark" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+          <rect x="1" y="1" width="22" height="22" rx="6" fill="var(--accent)" />
+          <path d="M10 5.5h4v4.5H18.5v4H14v4.5h-4V14H5.5v-4H10z" fill="var(--accent-contrast)" />
+        </svg>
+        <h1>WardOS</h1>
+      </div>
+      <p className="login-tagline">
+        Six months of hospital history, live in your browser. Sign in to take a shift.
+      </p>
 
       <form className="login-form" onSubmit={handleSubmit}>
         <label>
@@ -57,7 +65,7 @@ export default function Login({ error }: { error?: string }) {
       </form>
 
       <div className="demo-accounts">
-        <p className="demo-accounts-label">Demo accounts</p>
+        <p className="demo-accounts-label">Demo accounts — select one to fill the form</p>
         <div className="demo-account-grid">
           {DEMO_ACCOUNTS.map((acc) => (
             <button
@@ -72,6 +80,12 @@ export default function Login({ error }: { error?: string }) {
           ))}
         </div>
       </div>
+
+      <p className="login-foot">
+        <span>Local-first</span>
+        <span>SQLite in your browser</span>
+        <span>Nothing leaves your device</span>
+      </p>
     </main>
   )
 }

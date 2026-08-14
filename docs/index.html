@@ -5,8 +5,29 @@
     <link rel="icon" type="image/svg+xml" href="./favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>WardOS</title>
-    <script type="module" crossorigin src="./assets/index-BQO-wmGa.js"></script>
-    <link rel="stylesheet" crossorigin href="./assets/index-9L2UIvRQ.css">
+    <script>
+      // Theme boot: runs before first paint so the page never flashes the
+      // wrong theme. An explicit choice (persisted by the Shell toggle)
+      // wins; otherwise follow the OS preference. Always stamps data-theme
+      // so the stylesheet only ever keys off the attribute.
+      ;(function () {
+        var stored = null
+        try {
+          stored = localStorage.getItem('wardos-theme')
+        } catch (e) {
+          /* storage unavailable — fall through to the OS preference */
+        }
+        var theme =
+          stored === 'light' || stored === 'dark'
+            ? stored
+            : window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches
+              ? 'dark'
+              : 'light'
+        document.documentElement.setAttribute('data-theme', theme)
+      })()
+    </script>
+    <script type="module" crossorigin src="./assets/index-DZS_B6nM.js"></script>
+    <link rel="stylesheet" crossorigin href="./assets/index-CFuoqfoH.css">
   </head>
   <body>
     <div id="root"></div>

@@ -20,28 +20,45 @@ export default function InvoiceDetail({
 }) {
   return (
     <div className="invoice-detail">
-      {frozen && <p className="frozen-badge">FROZEN</p>}
-      <p>Nights: {invoice.nights}</p>
-      <p>
-        Room total ({formatINR(invoice.roomRatePaise)}/night): {formatINR(invoice.roomTotalPaise)}
-      </p>
+      {frozen && <p className="frozen-badge">Frozen</p>}
+      <div className="inv-row">
+        <span className="inv-row__label">
+          Room · {invoice.nights} night{invoice.nights === 1 ? '' : 's'} × {formatINR(invoice.roomRatePaise)}
+        </span>
+        <span className="inv-row__amount">{formatINR(invoice.roomTotalPaise)}</span>
+      </div>
       {invoice.lines.length === 0 ? (
-        <p>No charges.</p>
+        <p className="inv-empty">No extra charges.</p>
       ) : (
         <ul className="charge-list">
           {invoice.lines.map((line, i) => (
-            <li key={i}>
-              {line.kind} — {line.description}: {formatINR(line.amountPaise)}
+            <li key={i} className="inv-row">
+              <span className="inv-row__label">
+                <span className="charge-kind">{line.kind}</span> {line.description}
+              </span>
+              <span className="inv-row__amount">{formatINR(line.amountPaise)}</span>
             </li>
           ))}
         </ul>
       )}
-      <p>Extras total: {formatINR(invoice.extrasTotalPaise)}</p>
-      <p>Deposit: {formatINR(invoice.depositPaise)}</p>
+      <div className="inv-row inv-row--rule">
+        <span className="inv-row__label">Extras total</span>
+        <span className="inv-row__amount">{formatINR(invoice.extrasTotalPaise)}</span>
+      </div>
+      <div className="inv-row">
+        <span className="inv-row__label">Deposit</span>
+        <span className="inv-row__amount">− {formatINR(invoice.depositPaise)}</span>
+      </div>
       {invoice.isRefund ? (
-        <p className="refund-due">Refund due: {formatINR(invoice.refundPaise)}</p>
+        <div className="inv-row inv-row--total refund-due">
+          <span className="inv-row__label">Refund due</span>
+          <span className="inv-row__amount">{formatINR(invoice.refundPaise)}</span>
+        </div>
       ) : (
-        <p className="balance-due">Balance due: {formatINR(invoice.balancePaise)}</p>
+        <div className="inv-row inv-row--total balance-due">
+          <span className="inv-row__label">Balance due</span>
+          <span className="inv-row__amount">{formatINR(invoice.balancePaise)}</span>
+        </div>
       )}
       {issuedAt !== undefined && <p className="issued-at">Issued {formatDateTimeIST(issuedAt)}</p>}
     </div>

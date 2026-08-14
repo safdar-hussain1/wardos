@@ -176,6 +176,7 @@ export default function About() {
           history.
         </p>
 
+        <div className="benchmark-grid">
         <article className="benchmark-baseline">
           <h3>N1 &mdash; float money</h3>
           <p>{benchmark.n1.description}</p>
@@ -258,6 +259,7 @@ export default function About() {
             </table>
           </div>
         </article>
+        </div>
 
         <article className="benchmark-baseline benchmark-baseline--wardos">
           <h3>WardOS &mdash; on the identical history</h3>
