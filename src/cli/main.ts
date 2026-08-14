@@ -18,6 +18,11 @@
  *                 live preview (as of the fixed clock anchor) if ACTIVE
  *   verify        C2 replay-equivalence check of the db file; PASS/FAIL + diff
  *   export        write src/app/data/summary.json for the site's results section
+ *   snapshot      seed a fresh hospital and write it to public/demo.db — the
+ *                 committed artifact the browser app boots from (Task 11,
+ *                 Ruling A). Ignores --db; always writes public/demo.db.
+ *                 Re-run this whenever src/seed changes
+ *                 (tests/demo-snapshot.test.ts fails loudly otherwise).
  *
  * Exit codes: 0 success; 1 runtime error or `verify` FAIL; 2 usage error
  * (missing or unknown command). Every command sets `process.exitCode`
@@ -44,6 +49,7 @@ import type { BedRow } from '../core/replay'
 
 const DEFAULT_DB_PATH = 'data/hospital.db'
 const SUMMARY_PATH = join('src', 'app', 'data', 'summary.json')
+const DEMO_SNAPSHOT_PATH = join('public', 'demo.db')
 
 // Fixed order every command uses when printing/aggregating by charge kind —
 // matches the CHECK constraint on charges.kind (src/db/schema.sql) and
@@ -99,6 +105,7 @@ Commands:
   bill <id>         print the itemized invoice for admission <id>
   verify            check replay(events) matches the live database, exit 1 on mismatch
   export            write src/app/data/summary.json for the site's results section
+  snapshot          seed a fresh hospital and write it to public/demo.db
 
 Options:
   --db <path>       database file to read/write (default: ${DEFAULT_DB_PATH})`)
@@ -399,6 +406,20 @@ async function cmdExport(dbPath: string): Promise<void> {
   console.log(`Wrote ${SUMMARY_PATH}`)
 }
 
+async function cmdSnapshot(): Promise<void> {
+  const { db, engine } = await seedHospital()
+
+  const dir = dirname(DEMO_SNAPSHOT_PATH)
+  if (dir !== '.') mkdirSync(dir, { recursive: true })
+  writeFileSync(DEMO_SNAPSHOT_PATH, db.serialize())
+
+  const census = engine.census()
+  console.log(`Wrote ${DEMO_SNAPSHOT_PATH}`)
+  console.log(
+    `Census: ${census.patients} patients, ${census.active} active admissions, ${census.bedsTotal} beds`,
+  )
+}
+
 // ---------------------------------------------------------------------
 // entry point
 // ---------------------------------------------------------------------
@@ -419,6 +440,8 @@ async function main(argv: string[]): Promise<void> {
       return cmdVerify(dbPath)
     case 'export':
       return cmdExport(dbPath)
+    case 'snapshot':
+      return cmdSnapshot()
     case undefined:
       printUsage()
       process.exitCode = 2

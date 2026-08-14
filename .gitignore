@@ -34,3 +34,12 @@ dist-bench/
 # directory, so carve it back out.
 !src/app/data/
 !src/app/data/**
+
+# public/demo.db IS committed — the browser app boots by fetching this
+# snapshot rather than re-seeding in-page (Task 11, Ruling A; regenerate via
+# `node bin/wardos.mjs snapshot`, guarded against drift by
+# tests/demo-snapshot.test.ts). docs/demo.db is its built-site copy, part of
+# the committed build output. The blanket *.db rule above would otherwise
+# also match both, so carve them back out.
+!public/demo.db
+!docs/demo.db
