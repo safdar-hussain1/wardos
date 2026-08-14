@@ -80,6 +80,23 @@ function findDisallowedUrls(text: string): string[] {
   return matches.filter((m) => !ALLOWED_PREFIXES.some((p) => m.startsWith(p)))
 }
 
+/**
+ * SEO metadata in index.html is the same category as the allowlist above:
+ * static text that happens to look like a URL, never dereferenced by the
+ * browser. `<link rel="canonical">`, the `og:`/`twitter:` meta tags, and the
+ * `application/ld+json` block exist for crawlers reading the document as
+ * text; no browser ever issues a request to any URL inside them. Strip
+ * exactly those regions before scanning so the scan still catches a real
+ * leak — an analytics script, a CDN font, a hardcoded endpoint — anywhere
+ * else in the page, including a URL smuggled into any *other* tag.
+ */
+function stripInertSeoMetadata(html: string): string {
+  return html
+    .replace(/<link\s+rel="canonical"[^>]*>/g, '')
+    .replace(/<meta\s+(?:property="(?:og|twitter):|name="twitter:)[^>]*>/gs, '')
+    .replace(/<script type="application\/ld\+json">[\s\S]*?<\/script>/g, '')
+}
+
 function jsBundleFiles(): string[] {
   return readdirSync(assetsDir)
     .filter((f) => f.endsWith('.js'))
@@ -123,13 +140,13 @@ describe('production bundle privacy', () => {
     expect(offenders).toEqual([])
   })
 
-  it('docs/index.html contains no absolute network origin', () => {
-    const text = readFileSync(join(docsDir, 'index.html'), 'utf8')
+  it('docs/index.html contains no absolute network origin outside inert SEO metadata', () => {
+    const text = stripInertSeoMetadata(readFileSync(join(docsDir, 'index.html'), 'utf8'))
     expect(findDisallowedUrls(text)).toEqual([])
   })
 
   it('docs/index.html loads its script/stylesheet from relative (same-origin) paths', () => {
-    const text = readFileSync(join(docsDir, 'index.html'), 'utf8')
+    const text = stripInertSeoMetadata(readFileSync(join(docsDir, 'index.html'), 'utf8'))
     const srcs = [...text.matchAll(/(?:src|href)="([^"]+)"/g)].map((m) => m[1])
     expect(srcs.length).toBeGreaterThan(0)
     for (const src of srcs) {
