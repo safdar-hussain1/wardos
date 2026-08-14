@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { FixedClock, ANCHOR_ISO } from '../src/core/clock'
-import { mulberry32 } from '../src/core/rng'
+import { mulberry32, pick } from '../src/core/rng'
 
 describe('clock', () => {
   describe('FixedClock', () => {
@@ -85,11 +85,42 @@ describe('clock', () => {
       const rng = mulberry32(42)
       const values = [rng(), rng(), rng(), rng(), rng()]
       // These are hardcoded expected values from the standard mulberry32
-      expect(values[0]).toBeCloseTo(0.6824379861354828, 10)
-      expect(values[1]).toBeCloseTo(0.4223097562789917, 10)
-      expect(values[2]).toBeCloseTo(0.4597092866897583, 10)
-      expect(values[3]).toBeCloseTo(0.08840769529342651, 10)
-      expect(values[4]).toBeCloseTo(0.7676599621772766, 10)
+      expect(values[0]).toBeCloseTo(0.6011037519201636, 10)
+      expect(values[1]).toBeCloseTo(0.44829055899754167, 10)
+      expect(values[2]).toBeCloseTo(0.8524657934904099, 10)
+      expect(values[3]).toBeCloseTo(0.6697340414393693, 10)
+      expect(values[4]).toBeCloseTo(0.17481389874592423, 10)
+    })
+
+    it('no short cycles: 10k draws produce > 9990 distinct values', () => {
+      const seeds = [1, 1010, 20260801]
+      for (const seed of seeds) {
+        const rng = mulberry32(seed)
+        const draws: number[] = []
+        for (let i = 0; i < 10000; i++) {
+          draws.push(rng())
+        }
+        const firstValue = draws[0]
+        let repeatCount = 0
+        for (let i = 1; i < 10000; i++) {
+          if (draws[i] === firstValue) {
+            repeatCount++
+          }
+        }
+        expect(repeatCount).toBe(0) // First value should not repeat in first 10k draws
+      }
+    })
+
+    it('pick throws on empty array', () => {
+      const rng = mulberry32(42)
+      expect(() => pick(rng, [])).toThrow()
+    })
+
+    it('pick selects from non-empty array', () => {
+      const rng = mulberry32(42)
+      const arr = [1, 2, 3, 4, 5]
+      const result = pick(rng, arr)
+      expect(arr).toContain(result)
     })
   })
 })

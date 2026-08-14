@@ -27,10 +27,17 @@ describe('money', () => {
       expect(rupees(0)).toBe(0)
     })
 
-    it('rejects non-integral rupee values', () => {
+    it('accepts paise-precise values', () => {
+      expect(rupees(1.5)).toBe(150)
+      expect(rupees(49.99)).toBe(4999)
+      expect(rupees(100)).toBe(10000)
+      expect(rupees(100.1)).toBe(10010)
+    })
+
+    it('rejects non-paise-precise values', () => {
       expect(() => rupees(10.001)).toThrow()
-      expect(() => rupees(100.1)).toThrow()
-      expect(() => rupees(1.5)).toThrow()
+      expect(() => rupees(0.001)).toThrow()
+      expect(() => rupees(1.23456)).toThrow()
     })
 
     it('accepts large integer rupee values', () => {

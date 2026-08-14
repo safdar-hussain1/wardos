@@ -8,14 +8,15 @@ export function paise(n: number): Paise {
 }
 
 export function rupees(r: number): Paise {
-  if (!Number.isSafeInteger(r)) {
-    throw new Error(`rupees: ${r} is not an integer`)
-  }
   const p = r * 100
-  if (!Number.isSafeInteger(p)) {
+  const rounded = Math.round(p)
+  if (Math.abs(p - rounded) > 1e-6) {
+    throw new Error(`rupees: ${r} is not paise-precise`)
+  }
+  if (!Number.isSafeInteger(rounded)) {
     throw new Error(`rupees: ${r} rupees would result in non-integer paise`)
   }
-  return p
+  return rounded
 }
 
 export function addP(a: Paise, b: Paise): Paise {
@@ -45,14 +46,14 @@ export function formatINR(a: Paise): string {
   const abs = Math.abs(a)
 
   // Convert to rupees and paise
-  const rupees = Math.floor(abs / 100)
-  const paise = abs % 100
+  const rupeePart = Math.floor(abs / 100)
+  const paisePart = abs % 100
 
   // Format the rupee part with Indian grouping
-  const rupeesStr = formatIndianNumber(rupees)
+  const rupeesStr = formatIndianNumber(rupeePart)
 
   // Format the complete amount
-  const formattedAmount = `${rupeesStr}.${String(paise).padStart(2, '0')}`
+  const formattedAmount = `${rupeesStr}.${String(paisePart).padStart(2, '0')}`
 
   if (isNegative) {
     return `−₹${formattedAmount}` // U+2212 minus sign
