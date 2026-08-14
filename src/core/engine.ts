@@ -2,6 +2,7 @@ import bcrypt from 'bcryptjs'
 import type { Db } from '../db/database'
 import type { Clock } from './clock'
 import type { Paise } from './money'
+import { paise, addP } from './money'
 import type { ChargeKind, ComputedInvoice } from './billing'
 import { computeInvoice } from './billing'
 import type { StaffRow } from './staff'
@@ -165,10 +166,19 @@ export class Engine {
 
   /**
    * Runs `fn` inside a single db transaction. Any error already thrown as
-   * AccessDeniedError/RuleViolationError propagates unchanged; a raw SQLite
-   * constraint failure is translated into a RuleViolationError — `mapError`
-   * gets first refusal at a friendly message, otherwise the raw SQLite
-   * message is used verbatim. Non-constraint errors propagate unchanged.
+   * AccessDeniedError/RuleViolationError propagates unchanged.
+   *
+   * A raw SQLite error is classified before being surfaced:
+   * - `mapError` gets first refusal at a friendly, command-specific message
+   *   (e.g. "bed is occupied").
+   * - Otherwise a UNIQUE or CHECK constraint failure — both are *data*
+   *   problems a caller can act on — is translated into a RuleViolationError
+   *   with a human message that names the violated rule, without leaking the
+   *   raw SQLite sentence verbatim.
+   * - A NOT NULL or FOREIGN KEY constraint failure indicates an engine bug
+   *   (missing required field, dangling id) rather than a user-facing rule
+   *   violation, so it — like any other non-constraint error — propagates
+   *   unchanged.
    */
   private runCommand<T>(fn: () => T, mapError?: (err: Error) => string | undefined): T {
     try {
@@ -182,11 +192,36 @@ export class Engine {
       if (mapped) {
         throw new RuleViolationError(mapped)
       }
-      if (/constraint/i.test(errorObj.message)) {
-        throw new RuleViolationError(errorObj.message)
+      const uniqueMatch = /^UNIQUE constraint failed: (.+)$/i.exec(errorObj.message)
+      if (uniqueMatch) {
+        throw new RuleViolationError(`a value violated a uniqueness rule (UNIQUE constraint: ${uniqueMatch[1]})`)
       }
+      const checkMatch = /^CHECK constraint failed: (.+)$/i.exec(errorObj.message)
+      if (checkMatch) {
+        throw new RuleViolationError(`a value violated a data rule (CHECK constraint: ${checkMatch[1]})`)
+      }
+      // NOT NULL / FOREIGN KEY / anything else: propagate raw — these are bugs, not user rule violations.
       throw errorObj
     }
+  }
+
+  /**
+   * Validates a money amount supplied to a command boundary: must be a safe
+   * integer (paise, no floats) and non-negative. Throws RuleViolationError
+   * *before* any transaction opens, so an invalid amount never reaches the
+   * db and never produces a partial mutation or event.
+   */
+  private requirePaise(value: number): Paise {
+    let p: Paise
+    try {
+      p = paise(value)
+    } catch {
+      throw new RuleViolationError('amount must be a non-negative integer amount in paise')
+    }
+    if (p < 0) {
+      throw new RuleViolationError('amount must be a non-negative integer amount in paise')
+    }
+    return p
   }
 
   private getAdmission(admissionId: number): AdmissionDbRow | undefined {
@@ -296,6 +331,7 @@ export class Engine {
     x: { patientId: number; bedId: number; diagnosis: string; depositPaise: Paise },
   ): number {
     this.requirePermission(actor, 'ADMIT')
+    this.requirePaise(x.depositPaise)
     return this.runCommand(
       () => {
         const admittedAt = this.clock.now().toISOString()
@@ -318,12 +354,11 @@ export class Engine {
 
   recordDeposit(actor: Actor, x: { admissionId: number; amountPaise: Paise }): void {
     this.requirePermission(actor, 'RECORD_DEPOSIT')
+    this.requirePaise(x.amountPaise)
     this.runCommand(() => {
-      this.requireActiveAdmission(x.admissionId)
-      this.db.run(`UPDATE admissions SET deposit_paise = deposit_paise + ? WHERE id = ?`, [
-        x.amountPaise,
-        x.admissionId,
-      ])
+      const admission = this.requireActiveAdmission(x.admissionId)
+      const newDepositPaise = addP(admission.deposit_paise, x.amountPaise)
+      this.db.run(`UPDATE admissions SET deposit_paise = ? WHERE id = ?`, [newDepositPaise, x.admissionId])
       this.appendEvent(actor, 'DEPOSIT_RECORDED', 'admission', x.admissionId, { ...x })
     })
   }
@@ -345,6 +380,7 @@ export class Engine {
     x: { admissionId: number; kind: ChargeKind; description: string; amountPaise: Paise },
   ): number {
     this.requirePermission(actor, 'ADD_CHARGE')
+    this.requirePaise(x.amountPaise)
     return this.runCommand(() => {
       this.requireActiveAdmission(x.admissionId)
       const chargedAt = this.clock.now().toISOString()

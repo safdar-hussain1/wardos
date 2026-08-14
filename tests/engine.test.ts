@@ -121,7 +121,7 @@ describe('Engine', () => {
       expect(eventCount(db)).toBe(before + 1)
     })
 
-    it('a failed command (rule violation inside the tx) persists no event and no partial mutation', async () => {
+    it('a rule violation that fires before the event insert persists no event and no partial mutation', async () => {
       const { db, engine } = await setup()
       const p1 = engine.registerPatient(ADMIN, {
         name: 'P1',
@@ -146,6 +146,48 @@ describe('Engine', () => {
       expect(eventCount(db)).toBe(before) // no event from the failed admit
       const admissionsForP2 = db.all(`SELECT * FROM admissions WHERE patient_id = ?`, [p2])
       expect(admissionsForP2).toHaveLength(0) // no partial admission row either
+    })
+
+    // The test above forces a failure *before* appendEvent ever runs, so it can't
+    // tell apart "events are written inside the tx" from "events are written
+    // outside the tx, but this command just never gets that far". This test
+    // instead forces the failure *after* a real, successful `INSERT INTO events`
+    // — by wrapping db.run to let the events insert through and then throw — so
+    // it only passes if the event row and the mutation are rolled back together,
+    // which can only happen if appendEvent runs inside the same db.inTransaction
+    // as the mutation.
+    it('a failure injected right after a successful event insert rolls back both the event and the mutation (proves same-tx atomicity)', async () => {
+      const { db, engine } = await setup()
+      const originalRun = db.run.bind(db)
+      let sawEventInsert = false
+      db.run = (sql: string, params?: unknown[]): void => {
+        if (/INSERT INTO events/.test(sql)) {
+          sawEventInsert = true
+          originalRun(sql, params) // let the event actually get written...
+          throw new Error('injected failure right after the event insert succeeded')
+        }
+        originalRun(sql, params)
+      }
+
+      const before = eventCount(db)
+      try {
+        expect(() =>
+          engine.registerPatient(ADMIN, {
+            name: 'Injected',
+            gender: 'F',
+            dobIso: '1990-01-01',
+            phone: '1',
+            idLast4: '1234',
+          }),
+        ).toThrow('injected failure right after the event insert succeeded')
+        expect(sawEventInsert).toBe(true) // the injection point was actually reached
+      } finally {
+        db.run = originalRun // restore before further queries/tests
+      }
+
+      expect(eventCount(db)).toBe(before) // the "successful" event insert was rolled back too
+      const patients = db.all(`SELECT * FROM patients WHERE name = 'Injected'`)
+      expect(patients).toHaveLength(0) // and so was the patient row
     })
   })
 
@@ -516,6 +558,147 @@ describe('Engine', () => {
         admissionId,
       ])
       expect(row?.deposit_paise).toBe(rupees(1500))
+    })
+  })
+
+  describe('money boundary validation (admit.depositPaise, recordDeposit.amountPaise, addCharge.amountPaise)', () => {
+    const BAD_AMOUNTS = [1.5, -100, NaN]
+
+    for (const bad of BAD_AMOUNTS) {
+      it(`admit rejects depositPaise=${bad} with RuleViolationError and persists nothing`, async () => {
+        const { db, engine } = await setup()
+        const patientId = engine.registerPatient(ADMIN, {
+          name: 'P1',
+          gender: 'F',
+          dobIso: '1990-01-01',
+          phone: '1',
+          idLast4: '1234',
+        })
+        const before = eventCount(db)
+        expect(() =>
+          engine.admit(ADMIN, { patientId, bedId: 1, diagnosis: 'x', depositPaise: bad }),
+        ).toThrow(RuleViolationError)
+        expect(eventCount(db)).toBe(before)
+        expect(db.all(`SELECT * FROM admissions`)).toHaveLength(0)
+      })
+
+      it(`recordDeposit rejects amountPaise=${bad} with RuleViolationError and leaves the deposit unchanged`, async () => {
+        const { db, engine } = await setup()
+        const patientId = engine.registerPatient(ADMIN, {
+          name: 'P1',
+          gender: 'F',
+          dobIso: '1990-01-01',
+          phone: '1',
+          idLast4: '1234',
+        })
+        const admissionId = engine.admit(ADMIN, {
+          patientId,
+          bedId: 1,
+          diagnosis: 'x',
+          depositPaise: rupees(1000),
+        })
+        const before = eventCount(db)
+        expect(() => engine.recordDeposit(ADMIN, { admissionId, amountPaise: bad })).toThrow(
+          RuleViolationError,
+        )
+        expect(eventCount(db)).toBe(before)
+        const row = db.get<{ deposit_paise: number }>(
+          `SELECT deposit_paise FROM admissions WHERE id = ?`,
+          [admissionId],
+        )
+        expect(row?.deposit_paise).toBe(rupees(1000)) // unchanged
+      })
+
+      it(`addCharge rejects amountPaise=${bad} with RuleViolationError and persists no charge/event`, async () => {
+        const { db, engine } = await setup()
+        const patientId = engine.registerPatient(ADMIN, {
+          name: 'P1',
+          gender: 'F',
+          dobIso: '1990-01-01',
+          phone: '1',
+          idLast4: '1234',
+        })
+        const admissionId = engine.admit(ADMIN, {
+          patientId,
+          bedId: 1,
+          diagnosis: 'x',
+          depositPaise: rupees(1000),
+        })
+        const before = eventCount(db)
+        expect(() =>
+          engine.addCharge(ADMIN, {
+            admissionId,
+            kind: 'PHARMACY',
+            description: 'x',
+            amountPaise: bad,
+          }),
+        ).toThrow(RuleViolationError)
+        expect(eventCount(db)).toBe(before)
+        expect(db.all(`SELECT * FROM charges WHERE admission_id = ?`, [admissionId])).toHaveLength(0)
+      })
+    }
+
+    it('rejects with the exact mandated message', async () => {
+      const { engine } = await setup()
+      const patientId = engine.registerPatient(ADMIN, {
+        name: 'P1',
+        gender: 'F',
+        dobIso: '1990-01-01',
+        phone: '1',
+        idLast4: '1234',
+      })
+      expect(() =>
+        engine.admit(ADMIN, { patientId, bedId: 1, diagnosis: 'x', depositPaise: -1 }),
+      ).toThrow('amount must be a non-negative integer amount in paise')
+    })
+  })
+
+  describe('constraint error classification', () => {
+    it('a CHECK constraint violation (addStaff base_paise <= 0) is a RuleViolationError with a human message, not the raw SQLite text verbatim', async () => {
+      const { engine } = await setup()
+      let caught: unknown
+      try {
+        engine.addStaff(ADMIN, {
+          name: 'Bad Staff',
+          type: 'ADMIN',
+          department: 'Admin',
+          base_paise: -100, // schema: CHECK (base_paise > 0)
+          years_service: 0,
+          specialty: null,
+          icu_assigned: 0,
+          night_shifts: 0,
+          on_call: 0,
+          joined_at: ANCHOR_ISO,
+        })
+      } catch (e) {
+        caught = e
+      }
+      expect(caught).toBeInstanceOf(RuleViolationError)
+      const message = (caught as Error).message
+      // Human, not the raw SQLite sentence verbatim as the whole message...
+      expect(message).not.toBe('CHECK constraint failed: base_paise > 0')
+      expect(message.startsWith('CHECK constraint failed')).toBe(false)
+      expect(message).toMatch(/data rule/i)
+      // ...but still names which rule was violated.
+      expect(message).toMatch(/base_paise/i)
+    })
+
+    it('a FOREIGN KEY constraint violation (bogus patientId) is NOT wrapped as a RuleViolationError', async () => {
+      const { engine } = await setup()
+      let caught: unknown
+      try {
+        engine.admit(ADMIN, {
+          patientId: 999_999,
+          bedId: 2, // bed 2 is unoccupied — isolates the FK failure from the bed-occupied UNIQUE case
+          diagnosis: 'x',
+          depositPaise: rupees(1000),
+        })
+      } catch (e) {
+        caught = e
+      }
+      expect(caught).toBeInstanceOf(Error)
+      expect(caught).not.toBeInstanceOf(RuleViolationError)
+      expect((caught as Error).message).toMatch(/FOREIGN KEY/i)
     })
   })
 })
