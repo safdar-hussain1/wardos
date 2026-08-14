@@ -1,0 +1,16 @@
+{
+  "admissionId": 1,
+  "nights": 4,
+  "roomRatePaise": 280000,
+  "roomTotalPaise": 1120000,
+  "extrasTotalPaise": 2498332,
+  "depositPaise": 4952407,
+  "balancePaise": -1334075,
+  "refundPaise": 1334075,
+  "lines": [
+    { "kind": "CONSULTATION", "description": "Follow-up Consult", "amountPaise": 109558 },
+    { "kind": "CONSULTATION", "description": "Anaesthesia Pre-op Consult", "amountPaise": 170346 },
+    { "kind": "TRANSPORT", "description": "Wheelchair Transport", "amountPaise": 193873 },
+    { "kind": "PROCEDURE", "description": "Open Reduction Internal Fixation", "amountPaise": 2024555 }
+  ]
+}

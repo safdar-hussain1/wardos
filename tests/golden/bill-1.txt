@@ -1,0 +1,22 @@
+Invoice for admission #1 (DISCHARGED)
+
+Patient:    Mahima Trivedi (WH-0003)
+Bed:        T-08 (TWIN)
+Diagnosis:  Post-operative Observation
+Admitted:   2026-02-07T17:34:00.000Z
+Discharged: 2026-02-11T15:02:00.000Z
+
+Nights:     4
+Room rate:  ₹2,800.00 / night
+Room total: ₹11,200.00
+
+Charges:
+  CONSULTATION  Follow-up Consult                      ₹1,095.58
+  CONSULTATION  Anaesthesia Pre-op Consult             ₹1,703.46
+  TRANSPORT     Wheelchair Transport                   ₹1,938.73
+  PROCEDURE     Open Reduction Internal Fixation      ₹20,245.55
+
+Extras total: ₹24,983.32
+Deposit:      ₹49,524.07
+
+Refund due: ₹13,340.75

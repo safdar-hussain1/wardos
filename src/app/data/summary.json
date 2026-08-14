@@ -1,0 +1,89 @@
+{
+  "generatedAtIso": "2026-08-01T03:30:00.000Z",
+  "census": {
+    "patients": 60,
+    "active": 17,
+    "bedsTotal": 32,
+    "bedsFree": 15
+  },
+  "occupancyByWard": [
+    {
+      "ward": "GENERAL",
+      "bedsTotal": 14,
+      "occupied": 8,
+      "free": 6,
+      "ratePaise": 150000
+    },
+    {
+      "ward": "ICU",
+      "bedsTotal": 4,
+      "occupied": 2,
+      "free": 2,
+      "ratePaise": 950000
+    },
+    {
+      "ward": "PRIVATE",
+      "bedsTotal": 6,
+      "occupied": 3,
+      "free": 3,
+      "ratePaise": 500000
+    },
+    {
+      "ward": "TWIN",
+      "bedsTotal": 8,
+      "occupied": 4,
+      "free": 4,
+      "ratePaise": 280000
+    }
+  ],
+  "revenueByChargeKind": [
+    {
+      "kind": "PROCEDURE",
+      "totalPaise": 263140675
+    },
+    {
+      "kind": "PHARMACY",
+      "totalPaise": 55101975
+    },
+    {
+      "kind": "CONSULTATION",
+      "totalPaise": 22045373
+    },
+    {
+      "kind": "TRANSPORT",
+      "totalPaise": 32256003
+    }
+  ],
+  "payrollByRole": {
+    "rows": [
+      {
+        "role": "DOCTOR",
+        "count": 6,
+        "totalPaise": 121071313
+      },
+      {
+        "role": "NURSE",
+        "count": 4,
+        "totalPaise": 17715474
+      },
+      {
+        "role": "TECHNICIAN",
+        "count": 2,
+        "totalPaise": 6718963
+      },
+      {
+        "role": "DRIVER",
+        "count": 2,
+        "totalPaise": 6547407
+      },
+      {
+        "role": "ADMIN",
+        "count": 1,
+        "totalPaise": 4966472
+      }
+    ],
+    "totalPaise": 157019629
+  },
+  "outstandingPaise": 371011758,
+  "refundCount": 11
+}
