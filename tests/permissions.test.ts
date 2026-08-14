@@ -116,7 +116,7 @@ describe('permissions', () => {
         for (const permission of allPermissions) {
           const expected = expectedMatrix[role][permission]
           const actual = MATRIX[role].has(permission)
-          expect(actual).toBe(expected, `${role} should ${expected ? 'have' : 'not have'} ${permission}`)
+          expect(actual, `${role} should ${expected ? 'have' : 'not have'} ${permission}`).toBe(expected)
         }
       }
     })
@@ -126,7 +126,7 @@ describe('permissions', () => {
         for (const permission of allPermissions) {
           const expected = MATRIX[role].has(permission)
           const actual = can(role, permission)
-          expect(actual).toBe(expected, `can('${role}', '${permission}') should be ${expected}`)
+          expect(actual, `can('${role}', '${permission}') should be ${expected}`).toBe(expected)
         }
       }
     })

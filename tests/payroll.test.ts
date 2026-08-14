@@ -1,6 +1,5 @@
 import { describe, it, expect } from 'vitest'
 import {
-  StaffMember,
   Doctor,
   Nurse,
   Technician,
@@ -115,13 +114,17 @@ describe('payroll', () => {
         on_call: 0,
         joined_at: '2020-01-01T00:00:00.000Z',
       }
-      const staff = staffFromRow(row)
+      const staff = staffFromRow(row) as Doctor
       expect(staff).toBeInstanceOf(Doctor)
       expect(staff.id).toBe(1)
       expect(staff.name).toBe('Dr. Smith')
+      expect(staff.specialty).toBe('Cardiology')
+      expect(staff.yearsService).toBe(6)
+      expect(staff.basePaise).toBe(18_000_000)
+      expect(staff.monthlyPay()).toBe(25_200_000) // base + 30% + 10% (years >= 5)
     })
 
-    it('creates Nurse from row', () => {
+    it('creates ICU Nurse from row with correct pay', () => {
       const row: any = {
         id: 2,
         name: 'Nurse Jane',
@@ -135,12 +138,36 @@ describe('payroll', () => {
         on_call: 0,
         joined_at: '2022-01-01T00:00:00.000Z',
       }
-      const staff = staffFromRow(row)
+      const staff = staffFromRow(row) as Nurse
       expect(staff).toBeInstanceOf(Nurse)
       expect(staff.id).toBe(2)
+      expect(staff.icuAssigned).toBe(true)
+      expect(staff.yearsService).toBe(2)
+      expect(staff.basePaise).toBe(5_200_000)
+      expect(staff.monthlyPay()).toBe(6_240_000) // base + 20% ICU allowance
     })
 
-    it('creates Technician from row', () => {
+    it('creates non-ICU Nurse from row', () => {
+      const row: any = {
+        id: 20,
+        name: 'Nurse John',
+        type: 'NURSE',
+        department: 'General',
+        base_paise: 5_200_000,
+        years_service: 3,
+        specialty: null,
+        icu_assigned: 0,
+        night_shifts: 0,
+        on_call: 0,
+        joined_at: '2023-01-01T00:00:00.000Z',
+      }
+      const staff = staffFromRow(row) as Nurse
+      expect(staff).toBeInstanceOf(Nurse)
+      expect(staff.icuAssigned).toBe(false)
+      expect(staff.monthlyPay()).toBe(5_200_000) // base only, no ICU allowance
+    })
+
+    it('creates Technician from row with night shifts', () => {
       const row: any = {
         id: 3,
         name: 'Tech John',
@@ -154,12 +181,16 @@ describe('payroll', () => {
         on_call: 0,
         joined_at: '2021-01-01T00:00:00.000Z',
       }
-      const staff = staffFromRow(row)
+      const staff = staffFromRow(row) as Technician
       expect(staff).toBeInstanceOf(Technician)
       expect(staff.id).toBe(3)
+      expect(staff.nightShifts).toBe(3)
+      expect(staff.yearsService).toBe(4)
+      expect(staff.basePaise).toBe(5_000_000)
+      expect(staff.monthlyPay()).toBe(5_120_000) // base + 40_000 * 3 night shifts
     })
 
-    it('creates Driver from row', () => {
+    it('creates on-call Driver from row', () => {
       const row: any = {
         id: 4,
         name: 'Driver Bob',
@@ -173,9 +204,33 @@ describe('payroll', () => {
         on_call: 1,
         joined_at: '2019-01-01T00:00:00.000Z',
       }
-      const staff = staffFromRow(row)
+      const staff = staffFromRow(row) as Driver
       expect(staff).toBeInstanceOf(Driver)
       expect(staff.id).toBe(4)
+      expect(staff.onCall).toBe(true)
+      expect(staff.yearsService).toBe(5)
+      expect(staff.basePaise).toBe(4_800_000)
+      expect(staff.monthlyPay()).toBe(5_400_000) // base + 600_000 on-call allowance
+    })
+
+    it('creates non-on-call Driver from row', () => {
+      const row: any = {
+        id: 40,
+        name: 'Driver Alice',
+        type: 'DRIVER',
+        department: 'Transport',
+        base_paise: 4_800_000,
+        years_service: 2,
+        specialty: null,
+        icu_assigned: 0,
+        night_shifts: 0,
+        on_call: 0,
+        joined_at: '2024-01-01T00:00:00.000Z',
+      }
+      const staff = staffFromRow(row) as Driver
+      expect(staff).toBeInstanceOf(Driver)
+      expect(staff.onCall).toBe(false)
+      expect(staff.monthlyPay()).toBe(4_800_000) // base only, no on-call allowance
     })
 
     it('creates AdminStaff from row', () => {
@@ -192,9 +247,12 @@ describe('payroll', () => {
         on_call: 0,
         joined_at: '2023-01-01T00:00:00.000Z',
       }
-      const staff = staffFromRow(row)
+      const staff = staffFromRow(row) as AdminStaff
       expect(staff).toBeInstanceOf(AdminStaff)
       expect(staff.id).toBe(5)
+      expect(staff.yearsService).toBe(2)
+      expect(staff.basePaise).toBe(3_500_000)
+      expect(staff.monthlyPay()).toBe(3_500_000) // base only
     })
 
     it('throws on unknown type', () => {
