@@ -30,10 +30,21 @@ async function main(): Promise<void> {
 
 function printTable(report: BenchmarkReport): void {
   console.log(`Replayed ${report.commands} commands from the seeded six-month hospital.\n`)
+
+  // `description` is a paragraph, not a table cell — print it separately
+  // per baseline, then a numbers-only table for the metrics themselves.
+  const { description: n1Description, ...n1Metrics } = report.n1
+  const { description: n2Description, ...n2Metrics } = report.n2
+  const { description: n3Description, ...n3Metrics } = report.n3
+
+  console.log(`N1 floatMoney — ${n1Description}\n`)
+  console.log(`N2 occupancyFlag — ${n2Description}\n`)
+  console.log(`N3 msDates — ${n3Description}\n`)
+
   console.table({
-    'N1 floatMoney': report.n1,
-    'N2 occupancyFlag': report.n2,
-    'N3 msDates': report.n3,
+    'N1 floatMoney': n1Metrics,
+    'N2 occupancyFlag': n2Metrics,
+    'N3 msDates': n3Metrics,
     wardos: report.wardos,
   })
 }

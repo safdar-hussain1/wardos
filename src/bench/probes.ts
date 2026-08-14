@@ -25,6 +25,14 @@ export function probeInvoicesWrong(db: Db): number {
     bed_id: number
   }>(`SELECT id, admitted_at, discharged_at, deposit_paise, bed_id FROM admissions WHERE status = 'DISCHARGED'`)
 
+  if (admissions.length === 0) {
+    // A probe that silently returns 0 because it examined nothing is
+    // indistinguishable from one that actually verified everything is
+    // correct — that's not an assertion, it's a tautology. Fail loudly
+    // instead of reporting a vacuous "0 wrong".
+    throw new Error('probeInvoicesWrong: found zero discharged admissions to check — the probe examined nothing')
+  }
+
   let wrong = 0
   for (const admission of admissions) {
     const bed = db.get<{ rate_paise: number }>(`SELECT rate_paise FROM beds WHERE id = ?`, [admission.bed_id])
@@ -88,4 +96,26 @@ export function probeBedsDrifted(db: Db): number {
     )
   `)
   return row?.n ?? 0
+}
+
+export interface ProbeCounts {
+  invoicesChecked: number
+  bedsChecked: number
+  admissionsTotal: number
+}
+
+/**
+ * The row-counts the probes above actually examined — evidence that the
+ * `wardos` row's zeros mean "checked, found none" and not "checked
+ * nothing, trivially zero". `invoicesChecked` counts every stored invoice
+ * (== every discharged admission, the same set `probeInvoicesWrong` walks);
+ * `bedsChecked` and `admissionsTotal` count every row in `beds` and
+ * `admissions` respectively (active and discharged both), independent of
+ * `probeBedsDrifted`'s own filtering.
+ */
+export function probeCounts(db: Db): ProbeCounts {
+  const invoicesChecked = db.get<{ n: number }>(`SELECT COUNT(*) AS n FROM invoices`)?.n ?? 0
+  const bedsChecked = db.get<{ n: number }>(`SELECT COUNT(*) AS n FROM beds`)?.n ?? 0
+  const admissionsTotal = db.get<{ n: number }>(`SELECT COUNT(*) AS n FROM admissions`)?.n ?? 0
+  return { invoicesChecked, bedsChecked, admissionsTotal }
 }

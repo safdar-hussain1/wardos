@@ -6,9 +6,23 @@ import type { CommandRecord } from './types'
  * this baseline converts every amount to a rupee `double` the moment it
  * sees it (`paise / 100`), accumulates totals with plain `+`, and only
  * rounds back to paise at the very end. It also applies a "promotional
- * service adjustment" that's added then immediately removed — a realistic
- * pattern (a discount toggled on then off during a billing review) that
- * should be a no-op but, in float arithmetic, isn't always.
+ * service adjustment": 2.5% added, then 2.5% removed — `total +=
+ * total*0.025; total -= total*0.025`.
+ *
+ * That reversal is NOT a no-op, and the residue it leaves is NOT float
+ * representation error — it's real in exact arithmetic too. The second
+ * step computes 2.5% of the *already-inflated* total (`total * 1.025`),
+ * not 2.5% of the original: `(t * 1.025) - (t * 1.025 * 0.025) = t *
+ * 1.025 * 0.975 = t * 0.999375`. Every bill this touches comes out
+ * exactly 0.0625% short — an order-of-operations bug that float-rupee
+ * bookkeeping invites (a spreadsheet-style "add a surcharge, back it out"
+ * pattern applied to a running total instead of a fixed base) and that
+ * integer-paise, single-computation billing avoids by construction, since
+ * there's no running total for a second adjustment to compound against.
+ * True sub-paise float-representation drift (`0.1 + 0.2 !== 0.3`-class
+ * error) also exists in this code path, but at these amounts and this
+ * operation count it's negligible next to the −0.0625% residue — the
+ * residue is what actually drives `n1`'s numbers.
  *
  * Deliberately does NOT import anything from `src/core/billing.ts` — this
  * is the wrong implementation, kept in isolation on purpose. `nights` and
@@ -18,10 +32,24 @@ import type { CommandRecord } from './types'
  * *money arithmetic* is naive here.
  */
 export interface FloatMoneyReport {
+  description: string
   invoicesWrong: number
   worstErrorPaise: number
   totalAbsErrorPaise: number
 }
+
+/**
+ * Exported so the exact wording is testable and can't silently drift from
+ * what the code actually does (see tests/benchmark.test.ts).
+ */
+export const FLOAT_MONEY_DESCRIPTION =
+  'Bills in rupee doubles instead of integer paise, then applies a 2.5% ' +
+  "service adjustment that's added and 'removed' — but the removal " +
+  'computes 2.5% of the already-inflated total, not the original, leaving ' +
+  'a real ×0.999375 (−0.0625% residue) on every bill in exact arithmetic, ' +
+  'before float representation error is even a factor. Integer-paise, ' +
+  "single-computation billing avoids this by construction: there's no " +
+  'running total left standing for a second adjustment to compound against.'
 
 interface AdmissionMoneyState {
   depositRupees: number
@@ -90,9 +118,12 @@ export function runFloatMoney(records: readonly CommandRecord[]): FloatMoneyRepo
         }
         total -= s.depositRupees
 
-        // A realistic promotional adjust cycle: applied then reversed. In
-        // exact arithmetic this is a no-op; in float arithmetic it isn't
-        // always.
+        // A realistic promotional adjust cycle: 2.5% added, then 2.5%
+        // "removed" — but the removal computes 2.5% of the now-inflated
+        // total, not the original, so this leaves a real ×0.999375
+        // (−0.0625%) residue on every bill, in exact arithmetic, before
+        // float representation error is even a factor. See the doc
+        // comment above.
         total += total * 0.025
         total -= total * 0.025
 
@@ -113,5 +144,5 @@ export function runFloatMoney(records: readonly CommandRecord[]): FloatMoneyRepo
     }
   }
 
-  return { invoicesWrong, worstErrorPaise, totalAbsErrorPaise }
+  return { description: FLOAT_MONEY_DESCRIPTION, invoicesWrong, worstErrorPaise, totalAbsErrorPaise }
 }

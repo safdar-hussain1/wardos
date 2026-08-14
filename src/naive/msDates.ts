@@ -19,11 +19,23 @@ import type { CommandRecord } from './types'
  * is the wrong implementation, kept in isolation on purpose.
  */
 export interface MsDatesReport {
+  description: string
   invoicesWrong: number
   nightsUnderbilled: number
   nightsOverbilled: number
   dayCasesFreed: number
 }
+
+/**
+ * Exported so the exact wording is testable and can't silently drift from
+ * what the code actually does (see tests/benchmark.test.ts).
+ */
+export const MS_DATES_DESCRIPTION =
+  'Counts nights as round((dischargeMs − admitMs) / 86,400,000) — raw ' +
+  'elapsed time, no timezone, no one-night minimum — instead of counting ' +
+  'IST calendar days crossed. A same-day day case under 12 hours rounds ' +
+  'to 0 nights instead of the correct 1, and every other stay is off by ' +
+  'however many hours it lands away from an exact 24-hour boundary.'
 
 interface AdmittedPayload {
   admissionId: number
@@ -82,5 +94,5 @@ export function runMsDates(records: readonly CommandRecord[]): MsDatesReport {
     admittedAtMs.delete(p.admissionId)
   }
 
-  return { invoicesWrong, nightsUnderbilled, nightsOverbilled, dayCasesFreed }
+  return { description: MS_DATES_DESCRIPTION, invoicesWrong, nightsUnderbilled, nightsOverbilled, dayCasesFreed }
 }

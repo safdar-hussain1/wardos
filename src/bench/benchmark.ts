@@ -7,16 +7,27 @@ import { runOccupancyFlag } from '../naive/occupancyFlag'
 import type { OccupancyFlagReport } from '../naive/occupancyFlag'
 import { runMsDates } from '../naive/msDates'
 import type { MsDatesReport } from '../naive/msDates'
-import { probeInvoicesWrong, probeDoubleBookings, probeBedsDrifted } from './probes'
+import { probeInvoicesWrong, probeDoubleBookings, probeBedsDrifted, probeCounts } from './probes'
 
 export type { CommandRecord }
+
+export interface WardosRow {
+  invoicesWrong: number
+  bedsDrifted: number
+  doubleBookingsAccepted: number
+  // Evidence the probes above actually examined real rows, not that they
+  // trivially found nothing to check — see probeCounts in ./probes.ts.
+  invoicesChecked: number
+  bedsChecked: number
+  admissionsTotal: number
+}
 
 export interface BenchmarkReport {
   commands: number
   n1: FloatMoneyReport
   n2: OccupancyFlagReport
   n3: MsDatesReport
-  wardos: { invoicesWrong: 0; bedsDrifted: 0; doubleBookingsAccepted: 0 }
+  wardos: WardosRow
 }
 
 /**
@@ -55,11 +66,22 @@ export async function runBenchmark(): Promise<BenchmarkReport> {
     )
   }
 
+  const counts = probeCounts(db)
+
   return {
     commands: commandCount,
     n1,
     n2,
     n3,
-    wardos: { invoicesWrong: 0, bedsDrifted: 0, doubleBookingsAccepted: 0 },
+    // The computed probe variables themselves, not a hardcoded literal —
+    // the throw above is what guarantees they're 0, not this assignment.
+    wardos: {
+      invoicesWrong,
+      bedsDrifted,
+      doubleBookingsAccepted,
+      invoicesChecked: counts.invoicesChecked,
+      bedsChecked: counts.bedsChecked,
+      admissionsTotal: counts.admissionsTotal,
+    },
   }
 }

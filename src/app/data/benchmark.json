@@ -1,16 +1,21 @@
 {
   "commands": 1313,
   "n1": {
+    "description": "Bills in rupee doubles instead of integer paise, then applies a 2.5% service adjustment that's added and 'removed' — but the removal computes 2.5% of the already-inflated total, not the original, leaving a real ×0.999375 (−0.0625% residue) on every bill in exact arithmetic, before float representation error is even a factor. Integer-paise, single-computation billing avoids this by construction: there's no running total left standing for a second adjustment to compound against.",
     "invoicesWrong": 87,
     "worstErrorPaise": 17343,
     "totalAbsErrorPaise": 243899
   },
   "n2": {
+    "description": "Tracks bed occupancy with a second, hand-maintained flag written separately from the admission record, and drops that second write on every 7th discharge (flag stays stuck occupied) and every 11th admit (flag stays stuck free) — plus has no code path for transfers at all, so a transferred patient's old bed is never revisited. The discharge crash alone can never cause a double booking — it only ever makes the flag too cautious (occupied when actually free), never too permissive. Only the admit crash's stuck-free flag, combined with the transfer blindness letting that stale reading survive long enough to be reused by a different, later admission, can.",
     "bedsDrifted": 2,
-    "doubleBookingsAccepted": 0,
-    "crashesInjected": 12
+    "doubleBookingsAccepted": 1,
+    "crashesInjected": 21,
+    "crashesOnAdmit": 9,
+    "crashesOnDischarge": 12
   },
   "n3": {
+    "description": "Counts nights as round((dischargeMs − admitMs) / 86,400,000) — raw elapsed time, no timezone, no one-night minimum — instead of counting IST calendar days crossed. A same-day day case under 12 hours rounds to 0 nights instead of the correct 1, and every other stay is off by however many hours it lands away from an exact 24-hour boundary.",
     "invoicesWrong": 23,
     "nightsUnderbilled": 13,
     "nightsOverbilled": 10,
@@ -19,7 +24,10 @@
   "wardos": {
     "invoicesWrong": 0,
     "bedsDrifted": 0,
-    "doubleBookingsAccepted": 0
+    "doubleBookingsAccepted": 0,
+    "invoicesChecked": 87,
+    "bedsChecked": 32,
+    "admissionsTotal": 104
   },
   "generatedAtIso": "2026-08-01T03:30:00.000Z"
 }
