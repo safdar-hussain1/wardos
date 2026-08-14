@@ -39,6 +39,18 @@ import type { CommandRecord } from './types'
  * months of history here where nothing happened to walk through that open
  * door).
  *
+ * `phantomFreeBeds` counts crash *effects*, not crash *events*:
+ * `crashesOnAdmit` counts every dropped set-write, but a dropped write is
+ * only a new hazard if it actually changes what the flag reads. If the
+ * flag was already stuck occupied on that exact bed (from an earlier,
+ * still-unresolved discharge crash), the dropped set-write is a no-op —
+ * the flag read occupied before and reads occupied after, so no phantom-
+ * free state is created (that admit still very much matters, though: see
+ * `wrongfulRefusals`, which fires for it instead — the flag wrongly turned
+ * away a bed that was, at that exact moment, genuinely free). On the
+ * committed seed this happens for exactly 1 of the 9 admit crashes, so
+ * `phantomFreeBeds` is 8, not 9 — see tests/benchmark.test.ts.
+ *
  * Deliberately does NOT import anything from `src/core/billing.ts` (N2
  * doesn't touch money at all) or any other core module — this is the wrong
  * implementation, kept in isolation on purpose.
@@ -62,7 +74,9 @@ export const OCCUPANCY_FLAG_DESCRIPTION =
   'Tracks bed occupancy with a second, hand-maintained flag written ' +
   'separately from the admission record, and drops that second write on ' +
   'every 7th discharge (flag stays stuck occupied) and every 11th admit ' +
-  '(flag stays stuck free), checked against a fully faithful truth oracle ' +
+  '(flag stays stuck free — unless the flag was already stuck occupied ' +
+  'from an earlier crash on that same bed, in which case the dropped ' +
+  'write changes nothing), checked against a fully faithful truth oracle ' +
   'that tracks every admit, transfer, and discharge correctly and is ' +
   'never itself subject to a crash. An accepted double booking cannot be ' +
   'measured by replaying a valid log — the schema that produced the log ' +
@@ -130,10 +144,17 @@ export function runOccupancyFlag(records: readonly CommandRecord[]): OccupancyFl
         const crashes = admitOrdinal % 11 === 0
         if (crashes) {
           crashesOnAdmit++
-          // The flag-setting write is dropped — the flag stays free even
-          // though the bed is now genuinely occupied. This is exactly the
-          // moment a new phantom-free-bed hazard is created.
-          phantomFreeBeds++
+          // The flag-setting write is dropped. If the flag was already
+          // free (`flagOccupiedBefore === false`, the common case), this
+          // leaves the bed reading free while genuinely occupied — a new
+          // phantom-free-bed hazard. But if the flag was ALREADY stuck
+          // occupied (from an earlier, still-unresolved discharge crash on
+          // this exact bed — the `wrongfulRefusals` case just above), the
+          // dropped write is a no-op: the flag read occupied before this
+          // admit and still reads occupied after, so no new hazard exists.
+          if (!flagOccupiedBefore) {
+            phantomFreeBeds++
+          }
         } else {
           flag.set(p.bedId, true) // write 2: the separate flag write
         }

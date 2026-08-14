@@ -68,15 +68,28 @@ describe('runBenchmark: end-to-end report over a freshly seeded six-month hospit
       // needed here, see the fix report).
       expect(a.n2.wrongfulRefusals).toBeGreaterThan(0)
       expect(a.n2.phantomFreeBeds).toBeGreaterThan(0)
-      // phantomFreeBeds counts every episode an admit crash *created*;
-      // phantomFreeAtEnd counts only those still open six months later
-      // (most get resynced by the crashed admission's own later, ordinary
-      // discharge or transfer) — so phantomFreeAtEnd is always <= phantomFreeBeds.
+      // phantomFreeAtEnd counts only the hazards still open six months
+      // later (most get resynced by the crashed admission's own later,
+      // ordinary discharge or transfer) — so it's always <= phantomFreeBeds.
       expect(a.n2.phantomFreeAtEnd).toBeGreaterThanOrEqual(0)
       expect(a.n2.phantomFreeAtEnd).toBeLessThanOrEqual(a.n2.phantomFreeBeds)
-      // phantomFreeBeds is defined as "one per admit crash" — literally
-      // equal by construction, not just correlated.
-      expect(a.n2.phantomFreeBeds).toBe(a.n2.crashesOnAdmit)
+    })
+
+    it('phantomFreeBeds counts hazard-creating admit crashes only, not every dropped write', () => {
+      // phantomFreeBeds is NOT "one per admit crash" — a dropped
+      // set-write only creates a new hazard if the flag was actually free
+      // beforehand. If the flag was ALREADY stuck occupied on that exact
+      // bed (from an earlier, still-unresolved discharge crash), the
+      // dropped write is a no-op: the flag read occupied before and after,
+      // so nothing new happens to it (that admit is a wrongful refusal
+      // instead — see above). On the committed seed this happens for
+      // exactly 1 of the 9 admit crashes, so phantomFreeBeds is 8, not 9.
+      // Asserting the committed literals here (per the controller's
+      // explicit go-ahead) rather than re-deriving them with a second,
+      // parallel reference simulation in the test itself.
+      expect(a.n2.crashesOnAdmit).toBe(9)
+      expect(a.n2.phantomFreeBeds).toBe(8)
+      expect(a.n2.phantomFreeBeds).toBeLessThanOrEqual(a.n2.crashesOnAdmit)
     })
 
     it('description states the structural insight plainly: accepted double-booking is unmeasurable from a valid log', () => {
@@ -240,6 +253,38 @@ describe('N2 runOccupancyFlag: unit-level crash mechanics', () => {
     expect(report.wrongfulRefusals).toBe(1)
     // The re-admit's own flag write (not itself a crash — only the 7th
     // and 11th ordinals crash) resyncs bed 7: flag and truth both true.
+    expect(report.bedsDrifted).toBe(0)
+  })
+
+  it('a no-op admit crash: the 11th admit lands on a bed already stuck occupied from an earlier discharge crash — wrongfulRefusals fires, phantomFreeBeds does not', () => {
+    const records: CommandRecord[] = []
+    // Seven admit/discharge cycles on beds 1-7 — the 7th discharge
+    // crashes, sticking bed 7's flag occupied while it's genuinely free.
+    for (let i = 1; i <= 7; i++) {
+      records.push({ action: 'ADMITTED', at: `admit${i}`, payload: { admissionId: i, bedId: i } })
+      records.push({ action: 'DISCHARGED', at: `discharge${i}`, payload: { admissionId: i } })
+    }
+    // Three unrelated admits (8th, 9th, 10th overall) to advance the admit
+    // ordinal without touching bed 7.
+    for (let i = 8; i <= 10; i++) {
+      records.push({ action: 'ADMITTED', at: `admit${i}`, payload: { admissionId: i, bedId: 100 + i } })
+    }
+    // The 11th admit overall reuses bed 7 — genuinely free (wardos itself
+    // doesn't consult the flag), but the flag already reads occupied
+    // (stuck from the discharge crash), so this is a wrongful refusal.
+    // It's ALSO the 11th admit, so its own flag-setting write is dropped
+    // — but the flag already read occupied, so dropping "set it to
+    // occupied" changes nothing: no new phantom-free hazard.
+    records.push({ action: 'ADMITTED', at: 'admit11', payload: { admissionId: 11, bedId: 7 } })
+
+    const report = runOccupancyFlag(records)
+    expect(report.crashesOnDischarge).toBe(1)
+    expect(report.crashesOnAdmit).toBe(1)
+    expect(report.wrongfulRefusals).toBe(1)
+    expect(report.phantomFreeBeds).toBe(0) // the no-op — this is the bug fixed in round 3
+    expect(report.phantomFreeAtEnd).toBe(0)
+    // The stuck-true flag now coincidentally matches truth again (the
+    // reuse made the bed genuinely occupied) — fully resynced.
     expect(report.bedsDrifted).toBe(0)
   })
 
