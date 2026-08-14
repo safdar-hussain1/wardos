@@ -1,11 +1,40 @@
 {
   "name": "wardos",
-  "private": true,
-  "version": "0.0.0",
+  "version": "1.0.0",
+  "description": "A hospital's whole operating picture — beds, billing, payroll, ambulances, audit trail — running entirely in your browser on SQLite (WASM). Local-first, event-sourced, zero server.",
   "type": "module",
+  "author": "Safdar Hussain <safdar.eryx@gmail.com>",
+  "license": "MIT",
+  "homepage": "https://safdar-hussain1.github.io/wardos/",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/safdar-hussain1/wardos.git"
+  },
+  "keywords": [
+    "hospital",
+    "local-first",
+    "sqlite",
+    "sql.js",
+    "wasm",
+    "event-sourcing",
+    "offline",
+    "billing",
+    "typescript",
+    "react"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
   "bin": {
     "wardos": "bin/wardos.mjs"
   },
+  "files": [
+    "bin/",
+    "src/",
+    "scripts/copy-wasm.mjs",
+    "public/sql-wasm.wasm",
+    "public/demo.db"
+  ],
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
