@@ -60,3 +60,4 @@ The benchmark output is committed JSON (`src/app/data/benchmark.json`), regenera
 - **Not multi-user, not multi-facility.** One hospital, one device, one browser profile. There is no sync, and no claim of one.
 - **Not medical advice, not a medical device.** It manages beds, bills, payroll, and dispatch — never diagnosis or treatment.
 - **Not a hardened deployment.** The auth demonstrates structure (hashing, per-command enforcement); it is not presented as protection against an attacker with device access.
+- **Not a globally installable npm tool.** The package is designed for git-clone use: the CLI runs the TypeScript sources through the repo's own dev tooling (vite-node), so `npm install -g` is not a supported path.
