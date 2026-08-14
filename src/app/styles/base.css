@@ -669,3 +669,243 @@ th {
   margin-top: 12px;
   font-size: 14px;
 }
+
+/* -- command deck / time machine: stat tiles ------------------------------ */
+
+.stat-tiles {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 12px;
+  margin-bottom: 24px;
+}
+
+.stat-tile {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 14px 16px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+
+.stat-tile__label {
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text);
+}
+
+.stat-tile__value {
+  font-size: 26px;
+  font-weight: 700;
+  color: var(--text-h);
+}
+
+.stat-tile__value--money {
+  font-size: 20px;
+}
+
+.stat-tile__value-of {
+  font-size: 15px;
+  font-weight: 400;
+  color: var(--text);
+}
+
+.deck-columns {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 20px;
+  margin-bottom: 24px;
+}
+
+.deck-section h2,
+.deck-section h3 {
+  font-size: 18px;
+  color: var(--text-h);
+  margin: 0 0 10px;
+}
+
+.occupancy-bars {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.occupancy-bar-row {
+  display: grid;
+  grid-template-columns: 100px 1fr auto;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+}
+
+.occupancy-bar-row__label {
+  color: var(--text-h);
+}
+
+.occupancy-bar-row__count {
+  color: var(--text);
+  white-space: nowrap;
+  text-align: right;
+}
+
+.bar-track {
+  height: 10px;
+  border-radius: 999px;
+  background: var(--border);
+  overflow: hidden;
+}
+
+.bar-fill {
+  height: 100%;
+  background: var(--accent);
+  border-radius: 999px;
+}
+
+.bar-fill--revenue {
+  background: #2fa876;
+}
+
+.deck-events-table {
+  font-size: 13px;
+}
+
+/* -- time machine ---------------------------------------------------------- */
+
+.time-machine-intro {
+  color: var(--text);
+  max-width: 60ch;
+  margin: 0 0 16px;
+}
+
+.scrubber {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 14px 16px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  margin-bottom: 20px;
+}
+
+.scrubber-play {
+  flex: 0 0 auto;
+  min-width: 68px;
+  background: var(--accent);
+  color: var(--accent-contrast);
+  border-color: var(--accent);
+}
+
+.scrubber-range {
+  flex: 1 1 auto;
+  accent-color: var(--accent);
+}
+
+.scrubber-date {
+  flex: 0 0 auto;
+  min-width: 12ch;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-h);
+  font-weight: 600;
+}
+
+.bed-row--mini {
+  grid-template-columns: repeat(auto-fill, minmax(48px, 1fr));
+  gap: 6px;
+}
+
+.bed-cell--mini {
+  display: block;
+  text-align: center;
+  padding: 6px 4px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font-size: 11px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* -- about / results --------------------------------------------------------- */
+
+.about-page section {
+  margin-bottom: 32px;
+}
+
+.about-page h2 {
+  font-size: 20px;
+  color: var(--text-h);
+  margin: 0 0 12px;
+}
+
+.about-page h3 {
+  font-size: 16px;
+  color: var(--text-h);
+  margin: 20px 0 8px;
+}
+
+.about-intro p {
+  max-width: 68ch;
+  color: var(--text);
+  margin: 0 0 12px;
+}
+
+.table-scroll {
+  overflow-x: auto;
+  margin-bottom: 12px;
+}
+
+.claims-table th,
+.benchmark-table th,
+.summary-table th {
+  white-space: nowrap;
+}
+
+.benchmark-baseline {
+  margin-bottom: 20px;
+  padding: 14px 16px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+
+.benchmark-baseline h3 {
+  margin-top: 0;
+}
+
+.benchmark-baseline p {
+  color: var(--text);
+  max-width: 72ch;
+  font-size: 14px;
+  margin: 0 0 12px;
+}
+
+.benchmark-baseline--wardos {
+  border-color: var(--accent);
+}
+
+.benchmark-table th {
+  width: 1%;
+  color: var(--text);
+  font-weight: 400;
+  text-transform: none;
+  letter-spacing: normal;
+  font-size: 14px;
+}
+
+.checked-of {
+  color: var(--text);
+  font-size: 12px;
+}
+
+.about-honesty ul {
+  padding-left: 20px;
+  color: var(--text);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-width: 70ch;
+}

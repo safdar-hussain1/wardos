@@ -4,7 +4,7 @@ import type { Role } from '../../core/permissions'
 import { can } from '../../core/permissions'
 import { store } from '../store'
 
-export type ScreenKey = 'ward' | 'billing' | 'payroll' | 'ambulances' | 'audit'
+export type ScreenKey = 'deck' | 'ward' | 'billing' | 'payroll' | 'ambulances' | 'audit' | 'time-machine' | 'about'
 
 const ROLE_LABELS: Record<Role, string> = {
   ADMIN: 'Administrator',
@@ -21,11 +21,14 @@ const ROLE_LABELS: Record<Role, string> = {
  * gated directly on role, same as the components themselves guard).
  */
 const NAV_ITEMS: { key: ScreenKey; label: string; visible: (role: Role) => boolean }[] = [
+  { key: 'deck', label: 'Command deck', visible: () => true },
   { key: 'ward', label: 'Ward board', visible: () => true },
   { key: 'billing', label: 'Billing desk', visible: (role) => can(role, 'VIEW_BILLING') },
   { key: 'payroll', label: 'Payroll', visible: (role) => role === 'ADMIN' },
   { key: 'ambulances', label: 'Ambulances', visible: (role) => can(role, 'VIEW_CLINICAL') },
   { key: 'audit', label: 'Audit trail', visible: (role) => role === 'ADMIN' },
+  { key: 'time-machine', label: 'Time machine', visible: () => true },
+  { key: 'about', label: 'Results', visible: () => true },
 ]
 
 export default function Shell({

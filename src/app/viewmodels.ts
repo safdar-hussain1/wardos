@@ -1,11 +1,14 @@
-import type { BedView, Engine, Actor } from '../core/engine'
-import type { ComputedInvoice, InvoiceLine } from '../core/billing'
+import type { BedView, Engine, Actor, CensusView } from '../core/engine'
+import type { ComputedInvoice, InvoiceLine, ChargeKind } from '../core/billing'
 import type { Paise } from '../core/money'
+import { addP } from '../core/money'
 import { can } from '../core/permissions'
 import type { Role } from '../core/permissions'
 import type { StaffMember, PayLine } from '../core/staff'
 import { payBreakdown, payrollTotal } from '../core/staff'
 import type { EventRow, EventAction } from '../core/events'
+import type { BedRow } from '../core/replay'
+import { replay } from '../core/replay'
 
 /**
  * The hospital's four wards, in the fixed display order the ward board
@@ -300,5 +303,177 @@ export function auditPageVm(
     hasNext: page < totalPages,
     hasPrev: page > 1,
     availableActions,
+  }
+}
+
+// ---------------------------------------------------------------------
+// deckVm — command deck
+// ---------------------------------------------------------------------
+
+// Fixed aggregation order — matches the `kind` CHECK constraint on the
+// `charges` table (src/db/schema.sql) and src/cli/main.ts's
+// CHARGE_KIND_ORDER, so a chart/legend never depends on iteration order.
+const CHARGE_KIND_ORDER: ChargeKind[] = ['PROCEDURE', 'PHARMACY', 'CONSULTATION', 'TRANSPORT']
+
+export interface DeckOccupancyRow {
+  ward: (typeof WARD_ORDER)[number]
+  bedsTotal: number
+  occupied: number
+  free: number
+}
+
+export interface DeckRevenueRow {
+  kind: ChargeKind
+  totalPaise: Paise
+}
+
+export interface DeckVm {
+  census: CensusView
+  occupancyByWard: DeckOccupancyRow[]
+  revenueByKind: DeckRevenueRow[]
+  /** Sum of positive unpaid balances across frozen (discharged) invoices — mirrors src/cli/main.ts's outstandingTotal. */
+  outstandingPaise: Paise
+  /** Count of frozen invoices with a negative balance (over-deposit refunds). */
+  refundCount: number
+  /** Newest-first, capped at 10 — straight from `Engine.eventsLog(10)`. */
+  recentEvents: EventRow[]
+}
+
+/**
+ * Pure view-model builder for the command deck: census, per-ward occupancy,
+ * revenue-by-kind, outstanding balance, refund count, and the last 10
+ * events — every figure read live off `engine` at render time via existing
+ * Engine queries only (`census`, `beds`, `admissionsDischarged`,
+ * `invoiceFor`, `eventsLog`), never `src/app/data/summary.json` (that file
+ * is a frozen snapshot for the static Results page — see `About.tsx` —
+ * while this screen always reflects the live db, including any demo
+ * mutation the current session has made).
+ *
+ * Revenue-by-kind and outstanding mirror the CLI's `revenueByChargeKind`/
+ * `outstandingTotal` (src/cli/main.ts) exactly — realized revenue and
+ * unpaid balance are only meaningful once an admission is discharged and
+ * its invoice is frozen, so both are summed over `admissionsDischarged()` +
+ * `invoiceFor(id)`, not live `billPreview` accruals on still-active stays.
+ */
+export function deckVm(engine: Engine): DeckVm {
+  const census = engine.census()
+
+  const byWard = new Map<string, { bedsTotal: number; occupied: number }>()
+  for (const bed of engine.beds()) {
+    const cur = byWard.get(bed.ward) ?? { bedsTotal: 0, occupied: 0 }
+    cur.bedsTotal += 1
+    if (bed.occupied) cur.occupied += 1
+    byWard.set(bed.ward, cur)
+  }
+  const occupancyByWard: DeckOccupancyRow[] = WARD_ORDER.map((ward) => {
+    const v = byWard.get(ward) ?? { bedsTotal: 0, occupied: 0 }
+    return { ward, bedsTotal: v.bedsTotal, occupied: v.occupied, free: v.bedsTotal - v.occupied }
+  })
+
+  const revenueMap = new Map<ChargeKind, Paise>(CHARGE_KIND_ORDER.map((k) => [k, 0]))
+  let outstandingPaise: Paise = 0
+  let refundCount = 0
+  for (const admission of engine.admissionsDischarged()) {
+    const invoice = engine.invoiceFor(admission.id)
+    if (!invoice) continue
+    for (const line of invoice.lines) {
+      revenueMap.set(line.kind, addP(revenueMap.get(line.kind) ?? 0, line.amountPaise))
+    }
+    if (invoice.balancePaise > 0) outstandingPaise = addP(outstandingPaise, invoice.balancePaise)
+    if (invoice.isRefund) refundCount += 1
+  }
+  const revenueByKind: DeckRevenueRow[] = CHARGE_KIND_ORDER.map((kind) => ({
+    kind,
+    totalPaise: revenueMap.get(kind) ?? 0,
+  }))
+
+  return {
+    census,
+    occupancyByWard,
+    revenueByKind,
+    outstandingPaise,
+    refundCount,
+    recentEvents: engine.eventsLog(10),
+  }
+}
+
+// ---------------------------------------------------------------------
+// timeMachineVm — time machine
+// ---------------------------------------------------------------------
+
+export interface TimeMachineBed {
+  id: number
+  label: string
+  ward: string
+  occupied: boolean
+}
+
+export interface TimeMachineVm {
+  uptoIso: string
+  patients: number
+  activeAdmissions: number
+  bedsTotal: number
+  bedsFree: number
+  occupancyByWard: DeckOccupancyRow[]
+  /** Sum of roomTotalPaise + extrasTotalPaise over every invoice issued at or before `uptoIso`. */
+  revenueToDatePaise: Paise
+  /** Count of invoices issued at or before `uptoIso` with a negative balance. */
+  refundsToDate: number
+  /** Miniature ward-board data: every bed, occupied? as of `uptoIso`. */
+  beds: TimeMachineBed[]
+}
+
+/**
+ * Pure view-model builder for the time machine: `replay(events, beds,
+ * uptoIso)` folds the event log into a `Snapshot` as of `uptoIso`, and this
+ * function derives census/occupancy/revenue/refunds/mini-ward-board from
+ * that Snapshot alone — no Engine, no Db, anywhere in this call graph.
+ * `replay` itself is a pure fold over its two array arguments (see
+ * core/replay.ts's own doc comment: "Never touches a Db") — this function
+ * adds no i/o of its own on top of it. Callers are expected to fetch
+ * `events`/`beds` once (e.g. `engine.eventsLog()` / `engine.beds()` when
+ * the time-machine screen mounts) and then scrub purely by calling this
+ * function repeatedly with a different `uptoIso` — see
+ * tests/app-logic.test.ts's poisoned-Db-facade test, which reassigns a real
+ * `Db`'s run/all/get to throw *after* that one fetch and then scrubs
+ * across the full six months without tripping it.
+ */
+export function timeMachineVm(events: EventRow[], beds: BedRow[], uptoIso: string): TimeMachineVm {
+  const snapshot = replay(events, beds, uptoIso)
+
+  const activeAdmissions = [...snapshot.admissions.values()].filter((a) => a.status === 'ACTIVE')
+  const occupiedBedIds = new Set(activeAdmissions.map((a) => a.bedId))
+
+  const byWard = new Map<string, { bedsTotal: number; occupied: number }>()
+  const tmBeds: TimeMachineBed[] = beds.map((bed) => {
+    const occupied = occupiedBedIds.has(bed.id)
+    const cur = byWard.get(bed.ward) ?? { bedsTotal: 0, occupied: 0 }
+    cur.bedsTotal += 1
+    if (occupied) cur.occupied += 1
+    byWard.set(bed.ward, cur)
+    return { id: bed.id, label: bed.label, ward: bed.ward, occupied }
+  })
+  const occupancyByWard: DeckOccupancyRow[] = WARD_ORDER.map((ward) => {
+    const v = byWard.get(ward) ?? { bedsTotal: 0, occupied: 0 }
+    return { ward, bedsTotal: v.bedsTotal, occupied: v.occupied, free: v.bedsTotal - v.occupied }
+  })
+
+  let revenueToDatePaise: Paise = 0
+  let refundsToDate = 0
+  for (const invoice of snapshot.invoices.values()) {
+    revenueToDatePaise = addP(revenueToDatePaise, addP(invoice.roomTotalPaise, invoice.extrasTotalPaise))
+    if (invoice.balancePaise < 0) refundsToDate += 1
+  }
+
+  return {
+    uptoIso,
+    patients: snapshot.patients.size,
+    activeAdmissions: activeAdmissions.length,
+    bedsTotal: beds.length,
+    bedsFree: beds.length - occupiedBedIds.size,
+    occupancyByWard,
+    revenueToDatePaise,
+    refundsToDate,
+    beds: tmBeds,
   }
 }

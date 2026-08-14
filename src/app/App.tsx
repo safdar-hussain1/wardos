@@ -6,11 +6,14 @@ import { DEMO_ACCOUNTS } from '../seed/facility'
 import Login from './Login'
 import Shell from './screens/Shell'
 import type { ScreenKey } from './screens/Shell'
+import CommandDeck from './screens/CommandDeck'
 import WardBoard from './screens/WardBoard'
 import BillingDesk from './screens/BillingDesk'
 import Payroll from './screens/Payroll'
 import Ambulances from './screens/Ambulances'
 import AuditTrail from './screens/AuditTrail'
+import TimeMachine from './screens/TimeMachine'
+import About from './screens/About'
 import './styles/base.css'
 
 /**
@@ -36,7 +39,7 @@ function maybeAutoLogin(state: AppState): void {
 
 export default function App() {
   const state = useSyncExternalStore(store.subscribe, store.get)
-  const [screen, setScreen] = useState<ScreenKey>('ward')
+  const [screen, setScreen] = useState<ScreenKey>('deck')
 
   useEffect(() => {
     void store.boot().then(() => {
@@ -46,11 +49,11 @@ export default function App() {
   }, [])
 
   // A fresh login (including a different role after logout→login) always
-  // lands on the ward board — avoids landing a new session on a screen the
-  // just-logged-in role can't see (the guard would still catch it, but this
-  // is the better default).
+  // lands on the command deck — visible to every role, so a new session
+  // never lands on a screen the just-logged-in role can't see (the nav
+  // guard would still catch it, but this is the better default).
   useEffect(() => {
-    setScreen('ward')
+    setScreen('deck')
   }, [state.actor?.userId])
 
   if (state.status === 'booting') {
@@ -69,11 +72,14 @@ export default function App() {
 
   return (
     <Shell actor={actor} activeScreen={screen} onNavigate={setScreen}>
+      {screen === 'deck' && <CommandDeck engine={engine} />}
       {screen === 'ward' && <WardBoard engine={engine} actor={actor} />}
       {screen === 'billing' && <BillingDesk engine={engine} actor={actor} />}
       {screen === 'payroll' && <Payroll engine={engine} actor={actor} />}
       {screen === 'ambulances' && <Ambulances engine={engine} actor={actor} />}
       {screen === 'audit' && <AuditTrail engine={engine} actor={actor} />}
+      {screen === 'time-machine' && <TimeMachine engine={engine} />}
+      {screen === 'about' && <About />}
     </Shell>
   )
 }
