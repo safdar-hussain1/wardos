@@ -2,6 +2,7 @@ import { Db } from '../db/database'
 import { Engine } from '../core/engine'
 import type { Actor } from '../core/engine'
 import { FixedClock, ANCHOR_ISO } from '../core/clock'
+import type { KV } from './persist'
 import { Persistor, browserKV } from './persist'
 
 /**
@@ -41,10 +42,32 @@ async function fetchDemoBytes(): Promise<Uint8Array> {
   return new Uint8Array(await res.arrayBuffer())
 }
 
-function createStore(): AppStore {
+function isBrowser(): boolean {
+  return typeof document !== 'undefined'
+}
+
+/**
+ * Exported (not just the default `store` singleton below) so tests can
+ * construct an isolated instance with an injected `KV` — avoids touching
+ * real IndexedDB and lets `fetch` be stubbed per-test without polluting the
+ * shared singleton. Defaults to `browserKV()` for real app usage.
+ */
+export function createStore(kv: KV = browserKV()): AppStore {
   let state: AppState = { status: 'booting' }
   const listeners = new Set<() => void>()
-  const persistor = new Persistor(browserKV())
+  const persistor = new Persistor(kv)
+
+  // A tab close (or navigation away) within the ~500ms debounce window would
+  // otherwise silently drop the latest writes — flush immediately whenever
+  // the page is being hidden/torn down. See Persistor.flush()'s doc comment
+  // for why this is necessarily best-effort.
+  if (isBrowser()) {
+    const flushNow = () => persistor.flush()
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'hidden') flushNow()
+    })
+    window.addEventListener('pagehide', flushNow)
+  }
 
   function get(): AppState {
     return state
@@ -116,13 +139,31 @@ function createStore(): AppStore {
     return result
   }
 
-  /** Wipes the user's persisted state and re-restores from the committed
-   * demo.db snapshot — a clean slate identical to a first-ever boot. */
+  /**
+   * Wipes the user's persisted state and re-restores from the committed
+   * demo.db snapshot — a clean slate identical to a first-ever boot.
+   *
+   * Mirrors boot()'s error handling: a fetch/restore failure surfaces via
+   * state.error rather than throwing out of an event handler. Unlike a
+   * fresh boot, there's already a working engine to fall back to here — the
+   * previous engine's data may be a little stale relative to the (already
+   * wiped) persisted bytes, but keeping it beats leaving the UI with no
+   * engine and no way to recover for the rest of the session.
+   */
   async function resetDemo(): Promise<void> {
-    await persistor.reset()
-    const db = await Db.restore(await fetchDemoBytes())
-    const engine = new Engine(db, APP_CLOCK())
-    setState({ status: 'login', engine })
+    const previousEngine = state.engine
+    try {
+      await persistor.reset()
+      const db = await Db.restore(await fetchDemoBytes())
+      const engine = new Engine(db, APP_CLOCK())
+      setState({ status: 'login', engine })
+    } catch (err) {
+      setState({
+        status: 'login',
+        engine: previousEngine,
+        error: err instanceof Error ? err.message : String(err),
+      })
+    }
   }
 
   return { get, subscribe, boot, login, logout, dispatch, resetDemo }

@@ -73,6 +73,7 @@ export class Persistor {
   private readonly kv: KV
   private readonly key: string
   private timer: ReturnType<typeof setTimeout> | undefined
+  private pending: Db | undefined
 
   constructor(kv: KV, key: string = DEFAULT_KEY) {
     this.kv = kv
@@ -80,13 +81,40 @@ export class Persistor {
   }
 
   schedule(db: Db): void {
+    this.pending = db
     if (this.timer !== undefined) {
       clearTimeout(this.timer)
     }
     this.timer = setTimeout(() => {
       this.timer = undefined
-      void this.kv.set(this.key, db.serialize())
+      this.writePending()
     }, DEBOUNCE_MS)
+  }
+
+  /**
+   * Writes the latest pending db bytes immediately, bypassing the debounce
+   * timer — for use on `pagehide`/`visibilitychange`-hidden, so a tab close
+   * within the ~500ms debounce window doesn't silently drop the latest
+   * writes. No-op if nothing is currently pending.
+   *
+   * `kv.set` (IndexedDB) is itself async; this fires the put without
+   * awaiting it, since a pagehide handler can't usefully await anyway (the
+   * page may already be torn down by the time the promise settles) — so
+   * this is best-effort. In practice, browsers let an IndexedDB write
+   * started during pagehide run to completion.
+   */
+  flush(): void {
+    if (this.timer === undefined || this.pending === undefined) return
+    clearTimeout(this.timer)
+    this.timer = undefined
+    this.writePending()
+  }
+
+  private writePending(): void {
+    const db = this.pending
+    this.pending = undefined
+    if (db === undefined) return
+    void this.kv.set(this.key, db.serialize())
   }
 
   load(): Promise<Uint8Array | undefined> {
@@ -98,6 +126,7 @@ export class Persistor {
       clearTimeout(this.timer)
       this.timer = undefined
     }
+    this.pending = undefined
     await this.kv.del(this.key)
   }
 }
