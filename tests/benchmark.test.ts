@@ -53,7 +53,7 @@ describe('runBenchmark: end-to-end report over a freshly seeded six-month hospit
     })
   })
 
-  describe('N2 occupancyFlag: real second-write drift in both directions', () => {
+  describe('N2 occupancyFlag: real second-write drift in both directions, against a faithful truth oracle', () => {
     it('injects both crash types and drifts at least one bed', () => {
       expect(a.n2.crashesOnAdmit).toBeGreaterThan(0)
       expect(a.n2.crashesOnDischarge).toBeGreaterThan(0)
@@ -61,15 +61,31 @@ describe('runBenchmark: end-to-end report over a freshly seeded six-month hospit
       expect(a.n2.bedsDrifted).toBeGreaterThan(0)
     })
 
-    it('accepts at least one real double booking via the admit-crash + transfer-blindness combination', () => {
-      expect(a.n2.doubleBookingsAccepted).toBeGreaterThan(0)
+    it('produces both honest failure modes on real data: wrongful refusals AND phantom-free beds', () => {
+      // Both come out nonzero on this seed — neither assertion needed the
+      // fallback the controller allowed for ("if either is genuinely 0,
+      // assert only the nonzero one and report the other honestly"; not
+      // needed here, see the fix report).
+      expect(a.n2.wrongfulRefusals).toBeGreaterThan(0)
+      expect(a.n2.phantomFreeBeds).toBeGreaterThan(0)
+      // phantomFreeBeds counts every episode an admit crash *created*;
+      // phantomFreeAtEnd counts only those still open six months later
+      // (most get resynced by the crashed admission's own later, ordinary
+      // discharge or transfer) — so phantomFreeAtEnd is always <= phantomFreeBeds.
+      expect(a.n2.phantomFreeAtEnd).toBeGreaterThanOrEqual(0)
+      expect(a.n2.phantomFreeAtEnd).toBeLessThanOrEqual(a.n2.phantomFreeBeds)
+      // phantomFreeBeds is defined as "one per admit crash" — literally
+      // equal by construction, not just correlated.
+      expect(a.n2.phantomFreeBeds).toBe(a.n2.crashesOnAdmit)
     })
 
-    it('description covers both crash directions and why only the admit crash can cause a double booking', () => {
+    it('description states the structural insight plainly: accepted double-booking is unmeasurable from a valid log', () => {
       expect(a.n2.description).toBe(OCCUPANCY_FLAG_DESCRIPTION)
       expect(a.n2.description).toContain('7th discharge')
       expect(a.n2.description).toContain('11th admit')
-      expect(a.n2.description.toLowerCase()).toContain('never cause a double booking')
+      expect(a.n2.description.toLowerCase()).toContain('accepted double booking cannot be measured')
+      expect(a.n2.description.toLowerCase()).toContain('phantom-free beds')
+      expect(a.n2.description.toLowerCase()).toContain('wrongful refusals')
     })
   })
 
@@ -189,7 +205,7 @@ describe('N1 runFloatMoney: unit-level float drift', () => {
 })
 
 describe('N2 runOccupancyFlag: unit-level crash mechanics', () => {
-  it('the 7th discharge in stream order crashes and leaves the flag stuck occupied', () => {
+  it('exact-7th pinning test: the 7th discharge in stream order crashes and leaves the flag stuck occupied', () => {
     const records: CommandRecord[] = []
     // Seven independent admit/discharge cycles on seven different beds —
     // the 7th discharge (in stream order) must crash. Fewer than 11 admits
@@ -203,7 +219,28 @@ describe('N2 runOccupancyFlag: unit-level crash mechanics', () => {
     expect(report.crashesOnAdmit).toBe(0)
     expect(report.crashesInjected).toBe(1)
     expect(report.bedsDrifted).toBe(1) // exactly bed 7's flag is stuck occupied
-    expect(report.doubleBookingsAccepted).toBe(0)
+    expect(report.phantomFreeAtEnd).toBe(0) // this drift is the *other* direction, not a phantom-free bed
+    expect(report.wrongfulRefusals).toBe(0) // nothing has tried to reuse bed 7 yet
+    expect(report.phantomFreeBeds).toBe(0)
+  })
+
+  it('a later admit reusing the stuck-occupied bed is counted as a wrongful refusal, and resyncs the flag', () => {
+    const records: CommandRecord[] = []
+    for (let i = 1; i <= 7; i++) {
+      records.push({ action: 'ADMITTED', at: `admit${i}`, payload: { admissionId: i, bedId: i } })
+      records.push({ action: 'DISCHARGED', at: `discharge${i}`, payload: { admissionId: i } })
+    }
+    // Bed 7's flag is now stuck occupied (from the 7th-discharge crash)
+    // while it's genuinely free — wardos itself doesn't consult this
+    // flag, so a real new admission to bed 7 happens anyway; the naive
+    // flag system would have wrongfully turned this patient away.
+    records.push({ action: 'ADMITTED', at: 'admit8', payload: { admissionId: 8, bedId: 7 } })
+
+    const report = runOccupancyFlag(records)
+    expect(report.wrongfulRefusals).toBe(1)
+    // The re-admit's own flag write (not itself a crash — only the 7th
+    // and 11th ordinals crash) resyncs bed 7: flag and truth both true.
+    expect(report.bedsDrifted).toBe(0)
   })
 
   it('a non-7th discharge clears the flag correctly — no drift', () => {
@@ -216,40 +253,54 @@ describe('N2 runOccupancyFlag: unit-level crash mechanics', () => {
     expect(report.bedsDrifted).toBe(0)
   })
 
-  it('exact-11th pinning test: the 11th admit crashes, leaves its bed flagged free, and a later admit reusing that bed (after the occupant transfers away, a move N2 never sees) is accepted as a double booking', () => {
+  it('exact-11th pinning test: the 11th admit crashes and leaves its bed a phantom-free hazard, still open at the end', () => {
     const records: CommandRecord[] = []
     // Ten unrelated admits on ten different beds — normal, no crash.
     for (let i = 1; i <= 10; i++) {
       records.push({ action: 'ADMITTED', at: `admit${i}`, payload: { admissionId: i, bedId: 100 + i } })
     }
-    // The 11th admit overall: admission 11 into bed 999 — this one crashes.
+    // The 11th admit overall: admission 11 into bed 999 — this one
+    // crashes. The bed is genuinely occupied (truth) but reads free
+    // (flag) — a standing double-booking hazard, not an accepted one:
+    // nothing in this test ever tries to admit into bed 999 again.
     records.push({ action: 'ADMITTED', at: 'admit11', payload: { admissionId: 11, bedId: 999 } })
-    // Admission 11 transfers out of bed 999 to bed 998 — N2 has no code
-    // path for TRANSFERRED at all, so it never learns bed 999 is free
-    // again, and never learns bed 998 is now occupied.
-    records.push({ action: 'TRANSFERRED', at: 'transfer11', payload: { admissionId: 11, toBedId: 998 } })
-    // A genuinely different, later admission (12) is admitted into bed
-    // 999 — really free (its true occupant moved to 998), but N2's own
-    // ledger still shows it occupied (stale) while the flag still reads
-    // free (stuck from the 11th-admit crash) — a real double booking N2
-    // accepts.
-    records.push({ action: 'ADMITTED', at: 'admit12', payload: { admissionId: 12, bedId: 999 } })
 
     const report = runOccupancyFlag(records)
     expect(report.crashesOnAdmit).toBe(1)
     expect(report.crashesOnDischarge).toBe(0)
-    expect(report.doubleBookingsAccepted).toBe(1)
+    expect(report.phantomFreeBeds).toBe(1)
+    expect(report.phantomFreeAtEnd).toBe(1) // never resolved — still open
+    expect(report.bedsDrifted).toBe(1)
+    expect(report.wrongfulRefusals).toBe(0)
   })
 
-  it('without the admit crash, the same transfer-and-reuse pattern never double-books (both readings stay in sync)', () => {
+  it('a phantom-free hazard that gets discharged normally afterward resyncs — phantomFreeBeds still counts the episode, phantomFreeAtEnd does not', () => {
+    const records: CommandRecord[] = []
+    for (let i = 1; i <= 10; i++) {
+      records.push({ action: 'ADMITTED', at: `admit${i}`, payload: { admissionId: i, bedId: 100 + i } })
+    }
+    records.push({ action: 'ADMITTED', at: 'admit11', payload: { admissionId: 11, bedId: 999 } }) // 11th admit — crashes
+    // Admission 11 is later discharged normally (this is only the 1st
+    // discharge in this stream, not the 7th, so it doesn't itself crash)
+    // — truth and flag both resync to false.
+    records.push({ action: 'DISCHARGED', at: 'discharge11', payload: { admissionId: 11 } })
+
+    const report = runOccupancyFlag(records)
+    expect(report.phantomFreeBeds).toBe(1) // the episode did happen
+    expect(report.phantomFreeAtEnd).toBe(0) // but it's resolved by the end
+    expect(report.bedsDrifted).toBe(0)
+  })
+
+  it('transfers are not a crash point: an ordinary transfer moves truth and flag together, introducing no drift', () => {
     const records: CommandRecord[] = [
       { action: 'ADMITTED', at: 'a1', payload: { admissionId: 1, bedId: 999 } },
       { action: 'TRANSFERRED', at: 't1', payload: { admissionId: 1, toBedId: 998 } },
-      { action: 'ADMITTED', at: 'a2', payload: { admissionId: 2, bedId: 999 } },
+      { action: 'ADMITTED', at: 'a2', payload: { admissionId: 2, bedId: 999 } }, // genuinely free now
     ]
     const report = runOccupancyFlag(records)
-    expect(report.crashesOnAdmit).toBe(0)
-    expect(report.doubleBookingsAccepted).toBe(0)
+    expect(report.bedsDrifted).toBe(0)
+    expect(report.wrongfulRefusals).toBe(0)
+    expect(report.phantomFreeBeds).toBe(0)
   })
 })
 

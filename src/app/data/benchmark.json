@@ -7,9 +7,11 @@
     "totalAbsErrorPaise": 243899
   },
   "n2": {
-    "description": "Tracks bed occupancy with a second, hand-maintained flag written separately from the admission record, and drops that second write on every 7th discharge (flag stays stuck occupied) and every 11th admit (flag stays stuck free) — plus has no code path for transfers at all, so a transferred patient's old bed is never revisited. The discharge crash alone can never cause a double booking — it only ever makes the flag too cautious (occupied when actually free), never too permissive. Only the admit crash's stuck-free flag, combined with the transfer blindness letting that stale reading survive long enough to be reused by a different, later admission, can.",
-    "bedsDrifted": 2,
-    "doubleBookingsAccepted": 1,
+    "description": "Tracks bed occupancy with a second, hand-maintained flag written separately from the admission record, and drops that second write on every 7th discharge (flag stays stuck occupied) and every 11th admit (flag stays stuck free), checked against a fully faithful truth oracle that tracks every admit, transfer, and discharge correctly and is never itself subject to a crash. An accepted double booking cannot be measured by replaying a valid log — the schema that produced the log never allowed a colliding admit to exist, so the flag's acceptance verdict is never actually put to a real conflict. What the crash-prone flag system produces instead is phantom-free beds (double-booking hazards: the admit crash leaves a truly occupied bed reading free to anyone who trusts the flag) and wrongful refusals of genuinely free beds (the discharge crash leaves a truly free bed reading occupied). bedsDrifted counts how many of those mismatches, in either direction, are still unresolved at the end of the six months.",
+    "bedsDrifted": 3,
+    "wrongfulRefusals": 7,
+    "phantomFreeBeds": 9,
+    "phantomFreeAtEnd": 1,
     "crashesInjected": 21,
     "crashesOnAdmit": 9,
     "crashesOnDischarge": 12
