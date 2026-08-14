@@ -113,6 +113,29 @@ describe('schema invariants', () => {
     db.close()
   })
 
+  it('recovers after a rollback: a later inTransaction still commits', async () => {
+    const db = await Db.fresh()
+    seedMinimal(db)
+    expect(() =>
+      db.inTransaction(() => {
+        db.run(
+          `INSERT INTO admissions (patient_id,bed_id,diagnosis,status,admitted_at) VALUES (1,1,'x','ACTIVE','2026-08-01T00:00:00.000Z')`,
+        )
+        throw new Error('boom')
+      }),
+    ).toThrow('boom')
+
+    db.inTransaction(() => {
+      db.run(
+        `INSERT INTO admissions (patient_id,bed_id,diagnosis,status,admitted_at) VALUES (1,1,'x','ACTIVE','2026-08-01T00:00:00.000Z')`,
+      )
+    })
+
+    const admissions = db.all(`SELECT * FROM admissions`)
+    expect(admissions).toHaveLength(1)
+    db.close()
+  })
+
   it('serialize/restore round-trips data', async () => {
     const db = await Db.fresh()
     seedMinimal(db)

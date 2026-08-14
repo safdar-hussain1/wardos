@@ -1,7 +1,6 @@
 /// <reference types="node" />
 import initSqlJs from 'sql.js'
 import type { BindParams, Database as SqlJsDb, SqlJsStatic } from 'sql.js'
-import schemaSql from './schema.sql?raw'
 
 let sqlJsPromise: Promise<SqlJsStatic> | undefined
 
@@ -36,6 +35,36 @@ async function resolveWasmUrl(): Promise<string> {
 }
 
 /**
+ * Loads schema.sql in whichever environment we're running in.
+ *
+ * - Browser (Vite): a static `?raw` import would be resolved eagerly by
+ *   plain `tsc`/`node` (a compiled CLI can't resolve `./schema.sql?raw` as a
+ *   real file), so this is a *dynamic* import, only ever awaited inside the
+ *   `isBrowser()` branch — plain Node never evaluates the specifier.
+ * - Node (Vitest, or a plain-`tsc`-compiled CLI): read the file directly.
+ *   Resolve module-relative to this file first (works for ts-node/Vitest,
+ *   where schema.sql sits next to database.ts/.js); if that path doesn't
+ *   exist (e.g. a CLI build emits to `dist-cli/` while schema.sql stays in
+ *   `src/db/`), fall back to `<cwd>/src/db/schema.sql`.
+ */
+async function loadSchemaSql(): Promise<string> {
+  if (isBrowser()) {
+    const mod = await import('./schema.sql?raw')
+    return mod.default
+  }
+  const { fileURLToPath } = await import(/* @vite-ignore */ 'node:url')
+  const { dirname, join } = await import(/* @vite-ignore */ 'node:path')
+  const { readFileSync, existsSync } = await import(/* @vite-ignore */ 'node:fs')
+
+  const moduleDir = dirname(fileURLToPath(import.meta.url))
+  const moduleRelative = join(moduleDir, 'schema.sql')
+  const path = existsSync(moduleRelative)
+    ? moduleRelative
+    : join(process.cwd(), 'src/db/schema.sql')
+  return readFileSync(path, 'utf8')
+}
+
+/**
  * `Db.run`/`all`/`get` accept `unknown[]` per the interface; sql.js's own
  * types are narrower (`SqlValue[]`). Callers are expected to only pass
  * SQLite-representable values (numbers, strings, Uint8Array, null) here —
@@ -54,7 +83,7 @@ export class Db {
   }
 
   static async fresh(): Promise<Db> {
-    const SQL = await loadSqlJs()
+    const [SQL, schemaSql] = await Promise.all([loadSqlJs(), loadSchemaSql()])
     const sqlDb = new SQL.Database()
     const db = new Db(sqlDb)
     db.enableForeignKeys()
@@ -112,14 +141,23 @@ export class Db {
       throw new Error('inTransaction: nested transactions are not supported')
     }
     this.txDepth++
-    this.sqlDb.run('BEGIN IMMEDIATE')
     try {
-      const result = fn()
-      this.sqlDb.run('COMMIT')
-      return result
-    } catch (err) {
-      this.sqlDb.run('ROLLBACK')
-      throw err
+      this.sqlDb.run('BEGIN IMMEDIATE')
+      try {
+        const result = fn()
+        this.sqlDb.run('COMMIT')
+        return result
+      } catch (err) {
+        try {
+          this.sqlDb.run('ROLLBACK')
+        } catch {
+          // Swallow a failed rollback so the original error (the actual
+          // cause) is what surfaces to the caller. txDepth is still reset
+          // in the outer `finally` below either way, so a bad rollback
+          // can't permanently wedge this Db into "always inside a tx".
+        }
+        throw err
+      }
     } finally {
       this.txDepth--
     }
