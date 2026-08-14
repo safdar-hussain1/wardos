@@ -45,6 +45,32 @@ describe('billing', () => {
         nightsBetween('2026-08-02T03:30:00.000Z', '2026-08-01T03:30:00.000Z'),
       ).toThrow()
     })
+
+    it('IST offset is load-bearing: IST says 1 night where UTC-day diff would say 2', () => {
+      // admit 2026-08-01T23:30:00.000Z, discharge 2026-08-03T00:30:00.000Z
+      // istDay(d) = floor((epochMs(d) + IST_OFFSET_MS) / 86_400_000)
+      //   admit IST local:      2026-08-02T05:00:00.000Z → istDay = 20667
+      //   discharge IST local:  2026-08-03T06:00:00.000Z → istDay = 20668
+      //   nights(IST) = max(1, 20668 − 20667) = 1
+      // A UTC-calendar-day diff (floor(epochMs/86_400_000) with no IST offset):
+      //   admit utcDay = 20666 (2026-08-01), discharge utcDay = 20668 (2026-08-03)
+      //   nights(UTC) = max(1, 20668 − 20666) = 2  ← would be wrong
+      const nights = nightsBetween('2026-08-01T23:30:00.000Z', '2026-08-03T00:30:00.000Z')
+      expect(nights).toBe(1)
+    })
+
+    it('IST offset is load-bearing (mirror): IST says 2 nights where UTC-day diff would say 1', () => {
+      // admit 2026-08-01T17:00:00.000Z, discharge 2026-08-02T19:30:00.000Z
+      // istDay(d) = floor((epochMs(d) + IST_OFFSET_MS) / 86_400_000)
+      //   admit IST local:      2026-08-01T22:30:00.000Z → istDay = 20666
+      //   discharge IST local:  2026-08-03T01:00:00.000Z → istDay = 20668
+      //   nights(IST) = max(1, 20668 − 20666) = 2
+      // A UTC-calendar-day diff (floor(epochMs/86_400_000) with no IST offset):
+      //   admit utcDay = 20666 (2026-08-01), discharge utcDay = 20667 (2026-08-02)
+      //   nights(UTC) = max(1, 20667 − 20666) = 1  ← would be wrong
+      const nights = nightsBetween('2026-08-01T17:00:00.000Z', '2026-08-02T19:30:00.000Z')
+      expect(nights).toBe(2)
+    })
   })
 
   describe('computeInvoice', () => {
@@ -96,16 +122,22 @@ describe('billing', () => {
     })
 
     it('C4: balancePaise is always a safe integer equal to roomTotal + extras − deposit', () => {
+      // Draw arbitrary minute offsets (not exact 24h multiples) so admit/discharge
+      // land at arbitrary times of day, letting UTC- and IST-day boundaries fall
+      // anywhere relative to the admit/discharge instants — including cases where
+      // a naive UTC-day diff would disagree with the IST-day diff.
+      const anchorMs = new Date('2026-08-01T00:00:00.000Z').getTime()
       fc.assert(
         fc.property(
-          fc.integer({ min: 1, max: 50 }), // nights
+          fc.integer({ min: 0, max: 60 * 24 * 365 * 3 }), // admit offset, minutes since anchor (~3 years)
+          fc.integer({ min: 0, max: 60 * 24 * 60 }), // duration, minutes (0 up to 60 days)
           fc.integer({ min: 0, max: 2_000_000 }), // roomRatePaise
           fc.array(fc.integer({ min: 0, max: 1_000_000 }), { maxLength: 20 }), // line amounts
           fc.integer({ min: 0, max: 10_000_000 }), // depositPaise
-          (nights, roomRatePaise, lineAmounts, depositPaise) => {
-            const admittedAtIso = '2026-08-01T03:30:00.000Z'
+          (admitOffsetMinutes, durationMinutes, roomRatePaise, lineAmounts, depositPaise) => {
+            const admittedAtIso = new Date(anchorMs + admitOffsetMinutes * 60_000).toISOString()
             const dischargedAtIso = new Date(
-              new Date(admittedAtIso).getTime() + nights * 86_400_000,
+              anchorMs + admitOffsetMinutes * 60_000 + durationMinutes * 60_000,
             ).toISOString()
             const lines: InvoiceLine[] = lineAmounts.map((amountPaise, i) => ({
               kind: 'PHARMACY',
