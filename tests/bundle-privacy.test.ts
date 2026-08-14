@@ -17,8 +17,12 @@ import { describe, it, expect, beforeAll } from 'vitest'
  * possibly-stale committed docs/ directory — generous timeout because a
  * full typecheck + build is slower than a unit test.
  *
- * Every `docs/assets/*.js` bundle and `docs/index.html` is scanned for the
- * literal substring `http://` or `https://`. The allowlist is intentionally
+ * Every `docs/assets/*.js` bundle, `docs/assets/*.css` stylesheet, and
+ * `docs/index.html` is scanned for the literal substring `http://` or
+ * `https://`. CSS is in scope because a `@font-face`/`@import`/`url(...)`
+ * pointing at a CDN would be exactly the kind of leak this test exists to
+ * catch — fonts here are self-hosted precisely so this stays empty. The
+ * allowlist is intentionally
  * tiny and each entry is justified below — none of them is a value ever
  * passed to `fetch`/`XMLHttpRequest`/`WebSocket`; they are static text that
  * happens to look like a URL:
@@ -82,6 +86,12 @@ function jsBundleFiles(): string[] {
     .map((f) => join(assetsDir, f))
 }
 
+function cssBundleFiles(): string[] {
+  return readdirSync(assetsDir)
+    .filter((f) => f.endsWith('.css'))
+    .map((f) => join(assetsDir, f))
+}
+
 describe('production bundle privacy', () => {
   it('at least one JS bundle was produced (sanity: the scan below isn\'t vacuously passing)', () => {
     expect(jsBundleFiles().length).toBeGreaterThan(0)
@@ -90,6 +100,21 @@ describe('production bundle privacy', () => {
   it('no docs/assets/*.js bundle contains an absolute network origin outside the allowlist', () => {
     const offenders: string[] = []
     for (const file of jsBundleFiles()) {
+      const text = readFileSync(file, 'utf8')
+      for (const url of findDisallowedUrls(text)) {
+        offenders.push(`${file}: ${url.slice(0, 80)}`)
+      }
+    }
+    expect(offenders).toEqual([])
+  })
+
+  it('at least one CSS bundle was produced (sanity: the scan below isn\'t vacuously passing)', () => {
+    expect(cssBundleFiles().length).toBeGreaterThan(0)
+  })
+
+  it('no docs/assets/*.css stylesheet contains an absolute network origin outside the allowlist (fonts are self-hosted)', () => {
+    const offenders: string[] = []
+    for (const file of cssBundleFiles()) {
       const text = readFileSync(file, 'utf8')
       for (const url of findDisallowedUrls(text)) {
         offenders.push(`${file}: ${url.slice(0, 80)}`)
