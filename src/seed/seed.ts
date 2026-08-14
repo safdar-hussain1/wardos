@@ -6,6 +6,7 @@ import type { Actor, StaffInput } from '../core/engine'
 import { mulberry32, pick, randInt } from '../core/rng'
 import type { ChargeKind } from '../core/billing'
 import type { Role } from '../core/permissions'
+import type { Paise } from '../core/money'
 import { WARD_CONFIG, DEMO_ACCOUNTS, DEMO_SALTS, insertFacility } from './facility'
 import {
   FEMALE_GIVEN_NAMES,
@@ -131,6 +132,47 @@ function refundDepositPaise(rng: () => number, ratePaise: number, nights: number
   const estimatedRoomPaise = ratePaise * Math.max(1, nights)
   const factor = 1.5 + rng() * 1.0 // 150%–250%
   return Math.round(estimatedRoomPaise * factor)
+}
+
+/**
+ * The deposit used by the wind-down "refund top-up" cycle (see
+ * `seedHospital`'s `refundGuard` loop): that cycle always admits and
+ * discharges in the same instant with zero extra charges, so its bill is
+ * always exactly one night's room rate — this is `refundDepositPaise(rng,
+ * ratePaise, 1)` pulled out as its own named, exported, independently
+ * testable function (same 150%–250% formula, same single `rng()` draw, so
+ * extracting it does not change the seed's RNG consumption sequence or its
+ * output — see tests/seed.test.ts's determinism-preservation note).
+ *
+ * Exported so a property test can assert, independent of the Engine, that
+ * this always exceeds a real 1-night/zero-extras bill computed by
+ * `computeInvoice` — i.e. the refund top-up path can never accidentally
+ * produce a non-refund.
+ */
+export function refundTopUpDeposit(ratePaise: Paise, rng: () => number): Paise {
+  const factor = 1.5 + rng() * 1.0 // 150%–250%
+  return Math.round(ratePaise * factor)
+}
+
+/**
+ * Picks a random element of `pool` whose id is not in `admittedIds`, or
+ * `undefined` if every element of `pool` is already admitted (the "soft cap
+ * exhausted" case). Pulled out of `seedHospital`'s `pickWaitingPatient`
+ * closure as a pure, exported function so the exhaustion path — which the
+ * wind-down phase relies on to fall through to registering a fresh patient
+ * — is directly unit-testable without running the full six-month
+ * simulation. Consumes exactly one `rng()` draw when it returns a pick, and
+ * zero when the pool is exhausted — identical to the inlined logic it
+ * replaces, so extracting it does not change the seed's RNG consumption
+ * sequence.
+ */
+export function selectAvailable<P extends { id: number }>(
+  pool: readonly P[],
+  admittedIds: ReadonlySet<number>,
+  rng: () => number,
+): P | undefined {
+  const waiting = pool.filter((p) => !admittedIds.has(p.id))
+  return waiting.length > 0 ? pick(rng, waiting) : undefined
 }
 
 function chargeAmountPaise(kind: ChargeKind, rng: () => number): number {
@@ -276,7 +318,38 @@ function requireActor(map: Partial<Record<Role, Actor>>, role: Role): Actor {
 // seedHospital
 // ---------------------------------------------------------------------
 
+/**
+ * Guards against concurrent `seedHospital()` runs. `withFixedDemoSalts`
+ * monkey-patches the module-shared `bcrypt.hashSync` for the duration of
+ * DEMO_ACCOUNTS creation; two overlapping runs would race to install/restore
+ * that patch and interleave their salt cursors (`DEMO_SALTS[i++]`),
+ * corrupting both runs' password hashes and breaking determinism. There is
+ * currently no `await` between entering `withFixedDemoSalts` and restoring
+ * the original `hashSync`, so today's single-threaded JS can't actually
+ * interleave *inside* that block — but `seedHospital` as a whole spans many
+ * `await`s (starting with `Db.fresh()`), so nothing stops two calls' async
+ * bodies from being in flight at once and both eventually reaching
+ * `withFixedDemoSalts`. This flag makes that scenario fail loudly instead
+ * of silently, and does so for the whole function (not just the salt
+ * patching), since a second full run sharing this module's mutable
+ * `bcrypt.hashSync` reference at any point is not something callers should
+ * rely on being safe.
+ */
+let seedInFlight = false
+
 export async function seedHospital(): Promise<SeedResult> {
+  if (seedInFlight) {
+    throw new Error('seedHospital is not reentrant')
+  }
+  seedInFlight = true
+  try {
+    return await runSeedHospital()
+  } finally {
+    seedInFlight = false
+  }
+}
+
+async function runSeedHospital(): Promise<SeedResult> {
   const db = await Db.fresh()
   insertFacility(db)
 
@@ -367,8 +440,7 @@ export async function seedHospital(): Promise<SeedResult> {
   }
 
   function pickWaitingPatient(): PatientProfile | undefined {
-    const waiting = registeredPatients.filter((p) => !admittedPatientIds.has(p.id))
-    return waiting.length > 0 ? pick(rng, waiting) : undefined
+    return selectAvailable(registeredPatients, admittedPatientIds, rng)
   }
 
   /** Always returns a patient who isn't currently admitted, registering a
@@ -398,10 +470,17 @@ export async function seedHospital(): Promise<SeedResult> {
 
     const stayNights = opts.boostRefund ? 1 : opts.forceActive ? 0 : pickStayNights(rng)
     const diagnosis = pick(rng, DIAGNOSES)
+    // `wantRefund`'s short-circuiting is load-bearing for determinism: for
+    // opts.boostRefund it never evaluates `rng() < 0.18`, and for
+    // opts.forceActive it never evaluates it either — both match the
+    // depositPaise branch below exactly, so this refactor draws the same
+    // rng() sequence, in the same order, as before it was split out.
     const wantRefund = opts.boostRefund === true || (!opts.forceActive && rng() < 0.18)
-    const depositPaise = wantRefund
-      ? refundDepositPaise(rng, bed.ratePaise, Math.max(1, stayNights))
-      : normalDepositPaise(rng, bed.ratePaise, Math.max(1, stayNights))
+    const depositPaise = opts.boostRefund
+      ? refundTopUpDeposit(bed.ratePaise, rng) // same formula as refundDepositPaise(rng, ratePaise, 1)
+      : wantRefund
+        ? refundDepositPaise(rng, bed.ratePaise, Math.max(1, stayNights))
+        : normalDepositPaise(rng, bed.ratePaise, Math.max(1, stayNights))
 
     const admissionId = cmd(() =>
       engine.admit(RECEPTION, { patientId: patient.id, bedId, diagnosis, depositPaise }),
