@@ -214,3 +214,48 @@ export function staffFromRow(row: StaffRow): StaffMember {
 export function payrollTotal(staff: StaffMember[]): Paise {
   return sumP(staff.map((s) => s.monthlyPay()))
 }
+
+export interface PayLine {
+  label: string
+  amountPaise: Paise
+}
+
+/**
+ * Pure itemization of a staff member's monthlyPay() arithmetic — one line
+ * per term of their own subclass's rule, in the same order/amounts the
+ * class's monthlyPay() computes them. `sum(lines) === member.monthlyPay()`
+ * always (see tests/payroll.test.ts's property test across every staff
+ * type and both branches of each type's conditional allowance).
+ */
+export function payBreakdown(member: StaffMember): PayLine[] {
+  const lines: PayLine[] = [{ label: 'Base', amountPaise: member.basePaise }]
+
+  if (member instanceof Doctor) {
+    const specialtyAllowance = Math.floor((member.basePaise * 30) / 100)
+    lines.push({ label: `Specialty allowance (30%, ${member.specialty})`, amountPaise: specialtyAllowance })
+    if (member.yearsService >= 5) {
+      const bonus = Math.floor((member.basePaise * 10) / 100)
+      lines.push({ label: 'Tenure bonus (10%, ≥5 years service)', amountPaise: bonus })
+    }
+  } else if (member instanceof Nurse) {
+    if (member.icuAssigned) {
+      const icuAllowance = Math.floor((member.basePaise * 20) / 100)
+      lines.push({ label: 'ICU allowance (20%)', amountPaise: icuAllowance })
+    }
+  } else if (member instanceof Technician) {
+    if (member.nightShifts > 0) {
+      const nightDifferential = 40_000 * member.nightShifts
+      lines.push({
+        label: `Night differential (₹400 × ${member.nightShifts} shift${member.nightShifts === 1 ? '' : 's'})`,
+        amountPaise: nightDifferential,
+      })
+    }
+  } else if (member instanceof Driver) {
+    if (member.onCall) {
+      lines.push({ label: 'On-call allowance', amountPaise: 600_000 })
+    }
+  }
+  // AdminStaff: base only — no further lines.
+
+  return lines
+}

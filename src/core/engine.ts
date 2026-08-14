@@ -5,7 +5,7 @@ import type { Paise } from './money'
 import { paise, addP } from './money'
 import type { ChargeKind, ComputedInvoice } from './billing'
 import { computeInvoice } from './billing'
-import type { StaffRow } from './staff'
+import type { StaffRow, StaffMember } from './staff'
 import { staffFromRow, payrollTotal } from './staff'
 import type { Role, Permission } from './permissions'
 import { can } from './permissions'
@@ -634,7 +634,7 @@ export class Engine {
     }))
   }
 
-  admissionsActive(): AdmissionView[] {
+  private admissionsByStatus(status: 'ACTIVE' | 'DISCHARGED'): AdmissionView[] {
     const rows = this.db.all<{
       id: number
       patient_id: number
@@ -645,15 +645,18 @@ export class Engine {
       diagnosis: string
       deposit_paise: number
       admitted_at: string
-    }>(`
+    }>(
+      `
       SELECT a.id, a.patient_id, p.name AS patient_name, p.mrn, a.bed_id, b.label AS bed_label,
              a.diagnosis, a.deposit_paise, a.admitted_at
       FROM admissions a
       JOIN patients p ON p.id = a.patient_id
       JOIN beds b ON b.id = a.bed_id
-      WHERE a.status = 'ACTIVE'
+      WHERE a.status = ?
       ORDER BY a.id
-    `)
+    `,
+      [status],
+    )
     return rows.map((r) => ({
       id: r.id,
       patientId: r.patient_id,
@@ -665,6 +668,28 @@ export class Engine {
       depositPaise: r.deposit_paise,
       admittedAt: r.admitted_at,
     }))
+  }
+
+  admissionsActive(): AdmissionView[] {
+    return this.admissionsByStatus('ACTIVE')
+  }
+
+  /** Discharged admissions — pair with `invoiceFor(id)` for the frozen invoice (mirrors `admissionsActive()` + `billPreview()`). */
+  admissionsDischarged(): AdmissionView[] {
+    return this.admissionsByStatus('DISCHARGED')
+  }
+
+  /** Staff table as typed `StaffMember` instances (each with its own `monthlyPay()`/`roleLabel()`), for screens that need more than `payroll()`'s flattened rows. */
+  staffMembers(): StaffMember[] {
+    const rows = this.db.all<StaffRow>(`SELECT * FROM staff ORDER BY id`)
+    return rows.map((r) => staffFromRow(r))
+  }
+
+  /** All accounts (no password data) — ADMIN-only screens use this to resolve an event's `actorUserId` to a username. */
+  users(): { id: number; username: string; role: Role }[] {
+    return this.db.all<{ id: number; username: string; role: Role }>(
+      `SELECT id, username, role FROM users ORDER BY id`,
+    )
   }
 
   ambulances(): AmbulanceView[] {

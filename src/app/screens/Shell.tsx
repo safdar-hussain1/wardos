@@ -1,7 +1,10 @@
 import type { ReactNode } from 'react'
 import type { Actor } from '../../core/engine'
 import type { Role } from '../../core/permissions'
+import { can } from '../../core/permissions'
 import { store } from '../store'
+
+export type ScreenKey = 'ward' | 'billing' | 'payroll' | 'ambulances' | 'audit'
 
 const ROLE_LABELS: Record<Role, string> = {
   ADMIN: 'Administrator',
@@ -11,11 +14,31 @@ const ROLE_LABELS: Record<Role, string> = {
   BILLING: 'Billing Desk',
 }
 
-// Task 13 adds real screens behind these — rendered here as disabled links
-// so the nav shape is visible now without wiring routes that don't exist yet.
-const PLACEHOLDER_SCREENS = ['Patients', 'Billing', 'Staff & payroll', 'Ambulances', 'Event log']
+/**
+ * The nav's fixed screen order, each with the permission check that decides
+ * whether it's shown for the current role. Payroll and Audit trail are
+ * ADMIN-only (no dedicated permission for either in `permissions.ts`, so
+ * gated directly on role, same as the components themselves guard).
+ */
+const NAV_ITEMS: { key: ScreenKey; label: string; visible: (role: Role) => boolean }[] = [
+  { key: 'ward', label: 'Ward board', visible: () => true },
+  { key: 'billing', label: 'Billing desk', visible: (role) => can(role, 'VIEW_BILLING') },
+  { key: 'payroll', label: 'Payroll', visible: (role) => role === 'ADMIN' },
+  { key: 'ambulances', label: 'Ambulances', visible: (role) => can(role, 'VIEW_CLINICAL') },
+  { key: 'audit', label: 'Audit trail', visible: (role) => role === 'ADMIN' },
+]
 
-export default function Shell({ actor, children }: { actor: Actor; children: ReactNode }) {
+export default function Shell({
+  actor,
+  activeScreen,
+  onNavigate,
+  children,
+}: {
+  actor: Actor
+  activeScreen: ScreenKey
+  onNavigate: (screen: ScreenKey) => void
+  children: ReactNode
+}) {
   function handleResetDemo(): void {
     const confirmed = window.confirm(
       'Reset the demo? This wipes all local changes and restores the original seeded hospital.',
@@ -29,11 +52,15 @@ export default function Shell({ actor, children }: { actor: Actor; children: Rea
       <header className="app-header">
         <h1>WardOS</h1>
         <nav className="app-nav" aria-label="Screens">
-          <span className="nav-link nav-link--active">Ward board</span>
-          {PLACEHOLDER_SCREENS.map((label) => (
-            <span key={label} className="nav-link nav-link--disabled" title="Arrives in Task 13">
-              {label}
-            </span>
+          {NAV_ITEMS.filter((item) => item.visible(actor.role)).map((item) => (
+            <button
+              key={item.key}
+              type="button"
+              className={`nav-link ${activeScreen === item.key ? 'nav-link--active' : ''}`}
+              onClick={() => onNavigate(item.key)}
+            >
+              {item.label}
+            </button>
           ))}
         </nav>
         <div className="session-info">

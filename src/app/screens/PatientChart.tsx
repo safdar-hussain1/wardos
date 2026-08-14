@@ -6,6 +6,7 @@ import { rupees } from '../../core/money'
 import { store } from '../store'
 import { formatINR, formatDateTimeIST } from '../format'
 import { chartVm } from '../viewmodels'
+import InvoiceDetail from './InvoiceDetail'
 
 const CHARGE_KINDS: ChargeKind[] = ['PROCEDURE', 'PHARMACY', 'CONSULTATION', 'TRANSPORT']
 
@@ -123,23 +124,7 @@ export default function PatientChart({
         {vm.isDischarged && vm.invoice ? (
           <section className="invoice-modal">
             <h3>Invoice</h3>
-            <p>Nights: {vm.invoice.nights}</p>
-            <p>Room total ({formatINR(vm.invoice.roomRatePaise)}/night): {formatINR(vm.invoice.roomTotalPaise)}</p>
-            <ul className="charge-list">
-              {vm.invoice.lines.map((line, i) => (
-                <li key={i}>
-                  {line.kind} — {line.description}: {formatINR(line.amountPaise)}
-                </li>
-              ))}
-            </ul>
-            <p>Extras total: {formatINR(vm.invoice.extrasTotalPaise)}</p>
-            <p>Deposit: {formatINR(vm.invoice.depositPaise)}</p>
-            {vm.invoice.isRefund ? (
-              <p className="refund-due">Refund due: {formatINR(vm.invoice.refundPaise)}</p>
-            ) : (
-              <p className="balance-due">Balance due: {formatINR(vm.invoice.balancePaise)}</p>
-            )}
-            <p className="issued-at">Issued {formatDateTimeIST(vm.invoice.issuedAt)}</p>
+            <InvoiceDetail invoice={vm.invoice} issuedAt={vm.invoice.issuedAt} frozen />
           </section>
         ) : (
           <>

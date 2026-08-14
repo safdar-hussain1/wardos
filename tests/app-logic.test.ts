@@ -4,8 +4,10 @@ import { FixedClock, ANCHOR_ISO } from '../src/core/clock'
 import { Engine, type Actor, type BedView } from '../src/core/engine'
 import { computeInvoice } from '../src/core/billing'
 import { rupees } from '../src/core/money'
+import { Doctor, payBreakdown } from '../src/core/staff'
+import type { EventRow } from '../src/core/events'
 import { formatINR, formatDateIST, formatDateTimeIST } from '../src/app/format'
-import { bedGrid, chartVm, WARD_ORDER } from '../src/app/viewmodels'
+import { bedGrid, chartVm, WARD_ORDER, billingVm, payrollVm, auditPageVm } from '../src/app/viewmodels'
 
 const ADMIN: Actor = { userId: 1, role: 'ADMIN', username: 'admin' }
 const DOCTOR: Actor = { userId: 2, role: 'DOCTOR', username: 'dr.rao' }
@@ -209,5 +211,201 @@ describe('format', () => {
 
   it('formatDateTimeIST includes the IST time and zone label', () => {
     expect(formatDateTimeIST(ANCHOR_ISO)).toBe('01 Aug 2026, 09:00 IST')
+  })
+})
+
+describe('billingVm', () => {
+  it('lists each active admission with a live billPreview and permittedActions.recordDeposit true for RECEPTION', async () => {
+    const { engine } = await setupEngine()
+    const depositPaise = rupees(1500)
+    const admissionId = registerAndAdmit(engine, depositPaise)
+    engine.addCharge(ADMIN, {
+      admissionId,
+      kind: 'PHARMACY',
+      description: 'Paracetamol',
+      amountPaise: rupees(200),
+    })
+
+    const vm = billingVm(engine, RECEPTION)
+    expect(vm.discharged).toEqual([])
+    expect(vm.active).toHaveLength(1)
+    const row = vm.active[0]
+    expect(row.admissionId).toBe(admissionId)
+    expect(row.preview).toEqual(
+      computeInvoice({
+        admittedAtIso: ANCHOR_ISO,
+        dischargedAtIso: ANCHOR_ISO,
+        roomRatePaise: 150000,
+        lines: [{ kind: 'PHARMACY', description: 'Paracetamol', amountPaise: rupees(200) }],
+        depositPaise,
+      }),
+    )
+    expect(vm.permittedActions.recordDeposit).toBe(true)
+  })
+
+  it('permittedActions.recordDeposit is false for a role without RECORD_DEPOSIT (DOCTOR)', async () => {
+    const { engine } = await setupEngine()
+    const vm = billingVm(engine, DOCTOR)
+    expect(vm.permittedActions.recordDeposit).toBe(false)
+  })
+
+  it('moves a discharged admission from active to discharged with the frozen invoiceFor', async () => {
+    const { engine } = await setupEngine()
+    const admissionId = registerAndAdmit(engine, rupees(100000))
+    engine.discharge(ADMIN, { admissionId })
+
+    const vm = billingVm(engine, ADMIN)
+    expect(vm.active).toEqual([])
+    expect(vm.discharged).toHaveLength(1)
+    const row = vm.discharged[0]
+    expect(row.admissionId).toBe(admissionId)
+    expect(row.invoice.issuedAt).toBe(ANCHOR_ISO)
+    expect(row.invoice.isRefund).toBe(true)
+  })
+
+  it('is stable with no admissions at all', async () => {
+    const { engine } = await setupEngine()
+    const vm = billingVm(engine, ADMIN)
+    expect(vm.active).toEqual([])
+    expect(vm.discharged).toEqual([])
+  })
+})
+
+describe('payrollVm', () => {
+  it('wraps every staff row as a StaffMember instance whose breakdown sums to monthlyPay, and totals payrollTotal', async () => {
+    const { engine } = await setupEngine()
+    engine.addStaff(ADMIN, {
+      name: 'Dr. Smith',
+      type: 'DOCTOR',
+      department: 'Cardiology',
+      base_paise: rupees(180000),
+      years_service: 6,
+      specialty: 'Cardiology',
+      icu_assigned: 0,
+      night_shifts: 0,
+      on_call: 0,
+      joined_at: ANCHOR_ISO,
+    })
+    engine.addStaff(ADMIN, {
+      name: 'Nurse Jane',
+      type: 'NURSE',
+      department: 'ICU',
+      base_paise: rupees(52000),
+      years_service: 2,
+      specialty: null,
+      icu_assigned: 1,
+      night_shifts: 0,
+      on_call: 0,
+      joined_at: ANCHOR_ISO,
+    })
+
+    const vm = payrollVm(engine)
+    expect(vm.rows).toHaveLength(2)
+
+    const doctorRow = vm.rows.find((r) => r.member instanceof Doctor)!
+    expect(doctorRow.roleLabel).toBe('DOCTOR')
+    expect(doctorRow.monthlyPaise).toBe(doctorRow.member.monthlyPay())
+    expect(doctorRow.breakdown).toEqual(payBreakdown(doctorRow.member))
+    expect(doctorRow.breakdown.reduce((s, l) => s + l.amountPaise, 0)).toBe(doctorRow.monthlyPaise)
+
+    const total = vm.rows.reduce((s, r) => s + r.monthlyPaise, 0)
+    expect(vm.totalPaise).toBe(total)
+  })
+
+  it('is stable with no staff at all', async () => {
+    const { engine } = await setupEngine()
+    const vm = payrollVm(engine)
+    expect(vm.rows).toEqual([])
+    expect(vm.totalPaise).toBe(0)
+  })
+})
+
+describe('auditPageVm', () => {
+  const USERS = [
+    { id: 1, username: 'admin', role: 'ADMIN' as const },
+    { id: 2, username: 'reception', role: 'RECEPTION' as const },
+  ]
+
+  function fixtureEvents(): EventRow[] {
+    return [
+      { id: 5, at: '2026-08-05T00:00:00.000Z', actorUserId: 1, action: 'DISCHARGED', entity: 'admission', entityId: 10, payload: '{"a":1}' },
+      { id: 4, at: '2026-08-04T00:00:00.000Z', actorUserId: null, action: 'STAFF_ADDED', entity: 'staff', entityId: 3, payload: '{"b":2}' },
+      { id: 3, at: '2026-08-03T00:00:00.000Z', actorUserId: 2, action: 'ADMITTED', entity: 'admission', entityId: 10, payload: '{"c":3}' },
+      { id: 2, at: '2026-08-02T00:00:00.000Z', actorUserId: 99, action: 'CHARGE_ADDED', entity: 'charge', entityId: 5, payload: '{"d":4}' },
+      { id: 1, at: '2026-08-01T00:00:00.000Z', actorUserId: 1, action: 'ADMITTED', entity: 'admission', entityId: 9, payload: `{"long":"${'x'.repeat(100)}"}` },
+    ]
+  }
+
+  it('paginates newest-first input at the given page size, with correct hasNext/hasPrev/totalPages', () => {
+    const vm = auditPageVm(fixtureEvents(), USERS, { page: 1, pageSize: 2 })
+    expect(vm.rows.map((r) => r.id)).toEqual([5, 4])
+    expect(vm.totalCount).toBe(5)
+    expect(vm.totalPages).toBe(3)
+    expect(vm.page).toBe(1)
+    expect(vm.hasPrev).toBe(false)
+    expect(vm.hasNext).toBe(true)
+  })
+
+  it('page 2 and the final partial page 3', () => {
+    const events = fixtureEvents()
+    const page2 = auditPageVm(events, USERS, { page: 2, pageSize: 2 })
+    expect(page2.rows.map((r) => r.id)).toEqual([3, 2])
+    expect(page2.hasPrev).toBe(true)
+    expect(page2.hasNext).toBe(true)
+
+    const page3 = auditPageVm(events, USERS, { page: 3, pageSize: 2 })
+    expect(page3.rows.map((r) => r.id)).toEqual([1])
+    expect(page3.hasPrev).toBe(true)
+    expect(page3.hasNext).toBe(false)
+  })
+
+  it('clamps an out-of-range page into [1, totalPages]', () => {
+    const events = fixtureEvents()
+    expect(auditPageVm(events, USERS, { page: 0, pageSize: 2 }).page).toBe(1)
+    expect(auditPageVm(events, USERS, { page: 999, pageSize: 2 }).page).toBe(3)
+  })
+
+  it('filters by action and recomputes totals against the filtered set', () => {
+    const vm = auditPageVm(fixtureEvents(), USERS, { page: 1, pageSize: 50, actionFilter: 'ADMITTED' })
+    expect(vm.rows.map((r) => r.id)).toEqual([3, 1])
+    expect(vm.totalCount).toBe(2)
+    expect(vm.totalPages).toBe(1)
+  })
+
+  it('ALL (or omitted) actionFilter includes every action', () => {
+    const vm = auditPageVm(fixtureEvents(), USERS, { page: 1, pageSize: 50, actionFilter: 'ALL' })
+    expect(vm.totalCount).toBe(5)
+  })
+
+  it('resolves actorUserId to username, null to "system", and an unknown id to a fallback label', () => {
+    const vm = auditPageVm(fixtureEvents(), USERS, { page: 1, pageSize: 50 })
+    const byId = new Map(vm.rows.map((r) => [r.id, r]))
+    expect(byId.get(5)!.actorUsername).toBe('admin')
+    expect(byId.get(4)!.actorUsername).toBe('system')
+    expect(byId.get(3)!.actorUsername).toBe('reception')
+    expect(byId.get(2)!.actorUsername).toBe('user#99')
+  })
+
+  it('summarizes long payloads to ~80 chars while payloadPretty carries the full pretty-printed JSON', () => {
+    const vm = auditPageVm(fixtureEvents(), USERS, { page: 1, pageSize: 50 })
+    const longRow = vm.rows.find((r) => r.id === 1)!
+    expect(longRow.payloadSummary.length).toBeLessThanOrEqual(81) // 80 chars + ellipsis
+    expect(longRow.payloadPretty).toBe(JSON.stringify(JSON.parse(fixtureEvents()[4].payload), null, 2))
+    expect(longRow.payloadPretty.length).toBeGreaterThan(longRow.payloadSummary.length)
+  })
+
+  it('lists distinct available actions across the full (unpaginated, unfiltered) input, sorted', () => {
+    const vm = auditPageVm(fixtureEvents(), USERS, { page: 1, pageSize: 2, actionFilter: 'ADMITTED' })
+    expect(vm.availableActions).toEqual(['ADMITTED', 'CHARGE_ADDED', 'DISCHARGED', 'STAFF_ADDED'])
+  })
+
+  it('is stable on an empty event list', () => {
+    const vm = auditPageVm([], USERS, { page: 1 })
+    expect(vm.rows).toEqual([])
+    expect(vm.totalCount).toBe(0)
+    expect(vm.totalPages).toBe(1)
+    expect(vm.hasNext).toBe(false)
+    expect(vm.hasPrev).toBe(false)
+    expect(vm.availableActions).toEqual([])
   })
 })

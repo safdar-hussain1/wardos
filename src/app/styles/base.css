@@ -193,15 +193,19 @@ button {
   border-radius: 6px;
 }
 
+button.nav-link {
+  border: none;
+  background: transparent;
+}
+
 .nav-link--active {
   background: var(--accent);
   color: var(--accent-contrast);
   font-weight: 600;
 }
 
-.nav-link--disabled {
-  color: var(--border);
-  cursor: not-allowed;
+.access-denied {
+  color: var(--error);
 }
 
 .role-badge {
@@ -403,4 +407,265 @@ button {
   display: flex;
   gap: 8px;
   margin-top: 8px;
+}
+
+/* -- shared: link-buttons, tables ----------------------------------------- */
+
+.link-button {
+  border: none;
+  background: transparent;
+  color: var(--accent);
+  padding: 0;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+}
+
+th,
+td {
+  text-align: left;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--border);
+}
+
+th {
+  color: var(--text);
+  font-weight: 600;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.frozen-badge {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--border);
+  color: var(--text-h);
+}
+
+/* -- billing desk ---------------------------------------------------------- */
+
+.billing-active,
+.billing-discharged {
+  margin-bottom: 28px;
+}
+
+.billing-active h2,
+.billing-discharged h2 {
+  font-size: 18px;
+  color: var(--text-h);
+  margin: 0 0 10px;
+}
+
+.inline-deposit-form {
+  display: flex;
+  gap: 6px;
+}
+
+.inline-deposit-form input {
+  width: 90px;
+  font: inherit;
+  padding: 6px 8px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg);
+  color: var(--text-h);
+}
+
+.invoice-detail p {
+  margin: 4px 0;
+}
+
+/* -- payroll ---------------------------------------------------------------- */
+
+.payroll h2 {
+  font-size: 18px;
+  color: var(--text-h);
+  margin: 0 0 10px;
+}
+
+.payroll-row {
+  cursor: pointer;
+}
+
+.payroll-row:hover {
+  background: var(--surface);
+}
+
+.payroll-breakdown-row td {
+  background: var(--surface);
+}
+
+.payroll-breakdown {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.payroll-breakdown-sum {
+  font-weight: 600;
+  border-top: 1px solid var(--border);
+  padding-top: 4px;
+  margin-top: 4px;
+}
+
+.payroll-total-row td {
+  font-weight: 700;
+  color: var(--text-h);
+  border-top: 2px solid var(--border);
+  border-bottom: none;
+}
+
+/* -- ambulances -------------------------------------------------------------- */
+
+.ambulances h2 {
+  font-size: 18px;
+  color: var(--text-h);
+  margin: 0 0 10px;
+}
+
+.ambulance-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 12px;
+}
+
+.ambulance-card {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 14px;
+  background: var(--surface);
+}
+
+.ambulance-card h3 {
+  margin: 0 0 2px;
+  font-size: 16px;
+  color: var(--text-h);
+}
+
+.ambulance-model {
+  color: var(--text);
+  font-size: 13px;
+  margin: 0 0 8px;
+}
+
+.ambulance-card--free {
+  border-color: var(--accent);
+}
+
+.ambulance-card--dispatched {
+  border-color: var(--error);
+}
+
+.ambulance-status {
+  font-weight: 600;
+  margin: 0 0 2px;
+}
+
+.ambulance-since {
+  font-size: 12px;
+  color: var(--text);
+  margin: 0 0 8px;
+}
+
+.dispatch-form {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.dispatch-form label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 13px;
+}
+
+.dispatch-form input,
+.dispatch-form select {
+  font: inherit;
+  padding: 6px 8px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg);
+  color: var(--text-h);
+}
+
+/* -- audit trail ------------------------------------------------------------- */
+
+.audit-trail h2 {
+  font-size: 18px;
+  color: var(--text-h);
+  margin: 0 0 10px;
+}
+
+.audit-controls {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 10px;
+  font-size: 14px;
+}
+
+.audit-controls label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.audit-controls select {
+  font: inherit;
+  padding: 4px 8px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg);
+  color: var(--text-h);
+}
+
+.audit-count {
+  color: var(--text);
+}
+
+.audit-row {
+  cursor: pointer;
+}
+
+.audit-row:hover {
+  background: var(--surface);
+}
+
+.audit-payload-summary {
+  font-family: ui-monospace, monospace;
+  font-size: 12px;
+}
+
+.audit-payload-row td {
+  background: var(--surface);
+}
+
+.audit-payload-row pre {
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-size: 12px;
+  margin: 0;
+}
+
+.audit-pager {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 12px;
+  font-size: 14px;
 }

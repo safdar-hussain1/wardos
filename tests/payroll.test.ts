@@ -7,6 +7,7 @@ import {
   AdminStaff,
   staffFromRow,
   payrollTotal,
+  payBreakdown,
 } from '../src/core/staff'
 import { rupees } from '../src/core/money'
 
@@ -285,6 +286,93 @@ describe('payroll', () => {
 
     it('handles empty staff list', () => {
       expect(payrollTotal([])).toBe(0)
+    })
+  })
+
+  describe('payBreakdown', () => {
+    it('Doctor: base + specialty(30%) + tenure bonus(10%) when years >= 5, lines sum to monthlyPay', () => {
+      const doc = new Doctor(1, 'Dr. Smith', 'Cardiology', rupees(180000), 6, 'Cardiology')
+      const lines = payBreakdown(doc)
+      expect(lines).toEqual([
+        { label: expect.stringContaining('Base'), amountPaise: rupees(180000) },
+        { label: expect.stringContaining('30%'), amountPaise: 5_400_000 },
+        { label: expect.stringContaining('10%'), amountPaise: 1_800_000 },
+      ])
+      expect(lines.reduce((sum, l) => sum + l.amountPaise, 0)).toBe(doc.monthlyPay())
+    })
+
+    it('Doctor: no tenure-bonus line when years < 5, lines still sum to monthlyPay', () => {
+      const doc = new Doctor(1, 'Dr. Smith', 'Cardiology', rupees(180000), 3, 'Cardiology')
+      const lines = payBreakdown(doc)
+      expect(lines).toHaveLength(2)
+      expect(lines.reduce((sum, l) => sum + l.amountPaise, 0)).toBe(doc.monthlyPay())
+    })
+
+    it('Nurse: base + ICU allowance(20%) line when ICU-assigned, sums to monthlyPay', () => {
+      const nurse = new Nurse(1, 'Nurse Jane', 'ICU', rupees(52000), 2, true)
+      const lines = payBreakdown(nurse)
+      expect(lines).toHaveLength(2)
+      expect(lines.reduce((sum, l) => sum + l.amountPaise, 0)).toBe(nurse.monthlyPay())
+    })
+
+    it('Nurse: base-only line when not ICU-assigned, sums to monthlyPay', () => {
+      const nurse = new Nurse(1, 'Nurse Jane', 'General', rupees(52000), 2, false)
+      const lines = payBreakdown(nurse)
+      expect(lines).toHaveLength(1)
+      expect(lines.reduce((sum, l) => sum + l.amountPaise, 0)).toBe(nurse.monthlyPay())
+    })
+
+    it('Technician: base + night-differential line when nightShifts > 0, sums to monthlyPay', () => {
+      const tech = new Technician(1, 'Tech John', 'Lab', rupees(50000), 4, 3)
+      const lines = payBreakdown(tech)
+      expect(lines).toHaveLength(2)
+      expect(lines.reduce((sum, l) => sum + l.amountPaise, 0)).toBe(tech.monthlyPay())
+    })
+
+    it('Technician: base-only line when nightShifts is 0, sums to monthlyPay', () => {
+      const tech = new Technician(1, 'Tech John', 'Lab', rupees(50000), 4, 0)
+      const lines = payBreakdown(tech)
+      expect(lines).toHaveLength(1)
+      expect(lines.reduce((sum, l) => sum + l.amountPaise, 0)).toBe(tech.monthlyPay())
+    })
+
+    it('Driver: base + on-call allowance line when onCall, sums to monthlyPay', () => {
+      const driver = new Driver(1, 'Driver Bob', 'Transport', rupees(48000), 5, true)
+      const lines = payBreakdown(driver)
+      expect(lines).toHaveLength(2)
+      expect(lines.reduce((sum, l) => sum + l.amountPaise, 0)).toBe(driver.monthlyPay())
+    })
+
+    it('Driver: base-only line when not onCall, sums to monthlyPay', () => {
+      const driver = new Driver(1, 'Driver Bob', 'Transport', rupees(48000), 5, false)
+      const lines = payBreakdown(driver)
+      expect(lines).toHaveLength(1)
+      expect(lines.reduce((sum, l) => sum + l.amountPaise, 0)).toBe(driver.monthlyPay())
+    })
+
+    it('AdminStaff: base-only line, sums to monthlyPay', () => {
+      const admin = new AdminStaff(1, 'Admin Alice', 'Administration', rupees(35000), 2)
+      const lines = payBreakdown(admin)
+      expect(lines).toEqual([{ label: expect.stringContaining('Base'), amountPaise: rupees(35000) }])
+      expect(lines.reduce((sum, l) => sum + l.amountPaise, 0)).toBe(admin.monthlyPay())
+    })
+
+    it('property: for every staff type and both branches of their conditional rule, payBreakdown lines sum exactly to monthlyPay()', () => {
+      const fixtures = [
+        new Doctor(1, 'D1', 'Cardiology', rupees(150000), 8, 'Cardiology'),
+        new Doctor(2, 'D2', 'Ortho', rupees(200000), 1, 'Ortho'),
+        new Nurse(3, 'N1', 'ICU', rupees(60000), 4, true),
+        new Nurse(4, 'N2', 'General', rupees(45000), 4, false),
+        new Technician(5, 'T1', 'Lab', rupees(48000), 2, 5),
+        new Technician(6, 'T2', 'Lab', rupees(48000), 2, 0),
+        new Driver(7, 'Dr1', 'Transport', rupees(40000), 3, true),
+        new Driver(8, 'Dr2', 'Transport', rupees(40000), 3, false),
+        new AdminStaff(9, 'A1', 'Administration', rupees(30000), 10),
+      ]
+      for (const member of fixtures) {
+        const sum = payBreakdown(member).reduce((s, l) => s + l.amountPaise, 0)
+        expect(sum).toBe(member.monthlyPay())
+      }
     })
   })
 })

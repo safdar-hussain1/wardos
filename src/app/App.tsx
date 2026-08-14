@@ -1,11 +1,16 @@
-import { useEffect, useSyncExternalStore } from 'react'
+import { useEffect, useState, useSyncExternalStore } from 'react'
 import { store } from './store'
 import type { AppState } from './store'
 import { maybeRunSelftest } from './selftest'
 import { DEMO_ACCOUNTS } from '../seed/facility'
 import Login from './Login'
 import Shell from './screens/Shell'
+import type { ScreenKey } from './screens/Shell'
 import WardBoard from './screens/WardBoard'
+import BillingDesk from './screens/BillingDesk'
+import Payroll from './screens/Payroll'
+import Ambulances from './screens/Ambulances'
+import AuditTrail from './screens/AuditTrail'
 import './styles/base.css'
 
 /**
@@ -31,6 +36,7 @@ function maybeAutoLogin(state: AppState): void {
 
 export default function App() {
   const state = useSyncExternalStore(store.subscribe, store.get)
+  const [screen, setScreen] = useState<ScreenKey>('ward')
 
   useEffect(() => {
     void store.boot().then(() => {
@@ -38,6 +44,14 @@ export default function App() {
       maybeAutoLogin(store.get())
     })
   }, [])
+
+  // A fresh login (including a different role after logout→login) always
+  // lands on the ward board — avoids landing a new session on a screen the
+  // just-logged-in role can't see (the guard would still catch it, but this
+  // is the better default).
+  useEffect(() => {
+    setScreen('ward')
+  }, [state.actor?.userId])
 
   if (state.status === 'booting') {
     return (
@@ -54,8 +68,12 @@ export default function App() {
   const { engine, actor } = state
 
   return (
-    <Shell actor={actor}>
-      <WardBoard engine={engine} actor={actor} />
+    <Shell actor={actor} activeScreen={screen} onNavigate={setScreen}>
+      {screen === 'ward' && <WardBoard engine={engine} actor={actor} />}
+      {screen === 'billing' && <BillingDesk engine={engine} actor={actor} />}
+      {screen === 'payroll' && <Payroll engine={engine} actor={actor} />}
+      {screen === 'ambulances' && <Ambulances engine={engine} actor={actor} />}
+      {screen === 'audit' && <AuditTrail engine={engine} actor={actor} />}
     </Shell>
   )
 }
