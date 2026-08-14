@@ -1,0 +1,25 @@
+{
+  "commands": 1313,
+  "n1": {
+    "invoicesWrong": 87,
+    "worstErrorPaise": 17343,
+    "totalAbsErrorPaise": 243899
+  },
+  "n2": {
+    "bedsDrifted": 2,
+    "doubleBookingsAccepted": 0,
+    "crashesInjected": 12
+  },
+  "n3": {
+    "invoicesWrong": 23,
+    "nightsUnderbilled": 13,
+    "nightsOverbilled": 10,
+    "dayCasesFreed": 9
+  },
+  "wardos": {
+    "invoicesWrong": 0,
+    "bedsDrifted": 0,
+    "doubleBookingsAccepted": 0
+  },
+  "generatedAtIso": "2026-08-01T03:30:00.000Z"
+}

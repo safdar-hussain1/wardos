@@ -27,3 +27,10 @@ dist-ssr
 data/
 *.db
 .superpowers/
+dist-bench/
+
+# src/app/data/benchmark.json IS committed (the site imports it) — the
+# generic data/ ignore rule above would otherwise also match this nested
+# directory, so carve it back out.
+!src/app/data/
+!src/app/data/**

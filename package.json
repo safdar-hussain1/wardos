@@ -7,6 +7,7 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "test": "vitest run",
+    "benchmark": "tsc -p tsconfig.bench.json && node scripts/run-benchmark.mjs",
     "postinstall": "node scripts/copy-wasm.mjs"
   },
   "dependencies": {
