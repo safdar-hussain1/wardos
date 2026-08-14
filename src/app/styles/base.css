@@ -44,7 +44,7 @@ h1 {
 }
 
 .app-shell {
-  max-width: 720px;
+  max-width: 1100px;
   margin: 0 auto;
   padding: 32px 20px;
   min-height: 100svh;
@@ -176,4 +176,231 @@ button {
 .demo-account-card span {
   color: var(--text);
   font-size: 13px;
+}
+
+/* -- app shell (post-login) ------------------------------------------- */
+
+.app-nav {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+
+.nav-link {
+  font-size: 14px;
+  padding: 6px 10px;
+  border-radius: 6px;
+}
+
+.nav-link--active {
+  background: var(--accent);
+  color: var(--accent-contrast);
+  font-weight: 600;
+}
+
+.nav-link--disabled {
+  color: var(--border);
+  cursor: not-allowed;
+}
+
+.role-badge {
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 3px 8px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  color: var(--text);
+}
+
+.app-content {
+  margin-top: 8px;
+}
+
+/* -- ward board ---------------------------------------------------------- */
+
+.ward-group {
+  margin-bottom: 24px;
+}
+
+.ward-group h2 {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  font-size: 18px;
+  color: var(--text-h);
+  margin: 0 0 10px;
+}
+
+.ward-counts {
+  font-size: 13px;
+  font-weight: 400;
+  color: var(--text);
+}
+
+.bed-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(96px, 1fr));
+  gap: 8px;
+}
+
+.bed-cell {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  text-align: left;
+  padding: 10px;
+  min-height: 56px;
+}
+
+.bed-cell span {
+  font-size: 12px;
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 100%;
+}
+
+.bed-cell--free {
+  border-color: var(--accent);
+}
+
+.bed-cell--occupied {
+  background: var(--error-bg);
+  border-color: var(--error);
+}
+
+/* -- modals (AdmitDialog, PatientChart) ----------------------------------- */
+
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgb(0 0 0 / 45%);
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 40px 16px;
+  overflow-y: auto;
+  z-index: 10;
+}
+
+.modal {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 20px;
+  width: 100%;
+  max-width: 520px;
+}
+
+.modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.modal-header h2 {
+  font-size: 18px;
+  color: var(--text-h);
+  margin: 0;
+}
+
+.modal label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 14px;
+  margin-bottom: 10px;
+}
+
+.modal input,
+.modal select {
+  font: inherit;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg);
+  color: var(--text-h);
+}
+
+.modal fieldset {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px;
+  margin: 0 0 10px;
+}
+
+.patient-results {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 10px;
+  max-height: 160px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.patient-result--selected {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: var(--accent-contrast);
+}
+
+.field-errors {
+  color: var(--error);
+  font-size: 13px;
+  margin: 0 0 10px;
+  padding-left: 18px;
+}
+
+.error-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  color: var(--error);
+  background: var(--error-bg);
+  border-radius: 6px;
+  padding: 8px 10px;
+  font-size: 14px;
+  margin: 0 0 12px;
+}
+
+.charge-list {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 8px;
+  font-size: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.refund-due {
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.balance-due {
+  color: var(--error);
+  font-weight: 600;
+}
+
+.chart-actions {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.transfer-picker {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
 }
