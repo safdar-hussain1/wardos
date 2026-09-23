@@ -26,7 +26,6 @@ dist-ssr
 # WardOS specific
 data/
 *.db
-.superpowers/
 dist-bench/
 
 # src/app/data/benchmark.json IS committed (the site imports it) — the
@@ -36,9 +35,9 @@ dist-bench/
 !src/app/data/**
 
 # public/demo.db IS committed — the browser app boots by fetching this
-# snapshot rather than re-seeding in-page (Task 11, Ruling A; regenerate via
-# `node bin/wardos.mjs snapshot`, guarded against drift by
-# tests/demo-snapshot.test.ts). docs/demo.db is its built-site copy, part of
+# snapshot instead of re-running the six-month seed in the page on every first
+# visit (regenerate it with `node bin/wardos.mjs snapshot`;
+# tests/demo-snapshot.test.ts fails if it drifts from the seed). docs/demo.db is its built-site copy, part of
 # the committed build output. The blanket *.db rule above would otherwise
 # also match both, so carve them back out.
 !public/demo.db

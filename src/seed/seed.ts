@@ -62,10 +62,11 @@ const RNG_SEED = 20260801
 const CHARGE_KINDS: ChargeKind[] = ['PROCEDURE', 'PHARMACY', 'CONSULTATION', 'TRANSPORT']
 
 /** How many of each ward's beds are forced occupied at the anchor instant.
- * Chosen so the total (8+4+3+2=17) sits mid-band in the required [15,22]
- * active-admissions range, and each value is strictly between 0 and the
- * ward's bed count, so every ward keeps at least one free AND one occupied
- * bed — both are hard requirements, enforced by `setWardOccupancy` in the
+ * Chosen so the total (8+4+3+2=17) sits mid-band in the [15,22]
+ * active-admissions range tests/seed.test.ts asserts (a hospital busy enough
+ * to look real, with room left to admit), and each value is strictly between
+ * 0 and the ward's bed count, so every ward keeps at least one free AND one
+ * occupied bed for the demo — both enforced by `setWardOccupancy` in the
  * wind-down phase regardless of what the stochastic simulation left behind. */
 const WARD_TARGET_OCCUPANCY: Record<string, number> = {
   GENERAL: 8,

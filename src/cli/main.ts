@@ -19,8 +19,9 @@
  *   verify        C2 replay-equivalence check of the db file; PASS/FAIL + diff
  *   export        write src/app/data/summary.json for the site's results section
  *   snapshot      seed a fresh hospital and write it to public/demo.db — the
- *                 committed artifact the browser app boots from (Task 11,
- *                 Ruling A). Ignores --db; always writes public/demo.db.
+ *                 committed file the browser app boots from, so the page
+ *                 never has to run the seed itself. Ignores --db; always
+ *                 writes public/demo.db.
  *                 Re-run this whenever src/seed changes
  *                 (tests/demo-snapshot.test.ts fails loudly otherwise).
  *

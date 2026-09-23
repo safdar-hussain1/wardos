@@ -5,7 +5,8 @@ import { fileURLToPath } from 'node:url'
 import { describe, it, expect, beforeAll } from 'vitest'
 
 /**
- * Privacy claim (spec §2/§9): "no network calls after asset load" — the
+ * Privacy claim (README "What this is not", DESIGN_CARD threat model): "no
+ * network calls after asset load" — the
  * production bundle never issues a fetch to any non-relative (absolute)
  * origin. Patient/billing/payroll data lives entirely in a local sql.js
  * database persisted to IndexedDB; nothing about it should ever be able to

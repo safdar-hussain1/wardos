@@ -23,8 +23,8 @@ const DOCTOR: Actor = { userId: 2, role: 'DOCTOR', username: 'dr.rao' }
 const RECEPTION: Actor = { userId: 3, role: 'RECEPTION', username: 'reception' }
 
 // Mirrors src/seed/facility.ts's WARD_LAYOUT (14 GENERAL / 8 TWIN / 6 PRIVATE
-// / 4 ICU = 32 beds) without touching the real (slow) seed — hand-built
-// BedView fixtures per the brief's guidance.
+// / 4 ICU = 32 beds) with hand-built BedView fixtures, so these view-model
+// tests stay fast and don't depend on the full six-month seed.
 const WARD_LAYOUT: { ward: (typeof WARD_ORDER)[number]; count: number; ratePaise: number; prefix: string }[] = [
   { ward: 'GENERAL', count: 14, ratePaise: 150000, prefix: 'G' },
   { ward: 'TWIN', count: 8, ratePaise: 280000, prefix: 'T' },

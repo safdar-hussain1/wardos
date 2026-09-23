@@ -29,7 +29,8 @@ export interface AppStore {
 }
 
 /**
- * Fetches the committed demo snapshot (Ruling A) — a relative URL so it
+ * Fetches the committed demo snapshot (public/demo.db, copied into docs/ by
+ * the build) instead of re-running the six-month seed in the page — a relative URL so it
  * resolves correctly under a GitHub Pages subpath the same way
  * database.ts's wasm loader does.
  */
@@ -88,7 +89,8 @@ export function createStore(kv: KV = browserKV()): AppStore {
   /**
    * boot() = try Persistor.load() (the user's own persisted state) first;
    * if there is none, fall back to the committed demo.db snapshot — the
-   * browser never re-runs the six-month seed itself (Ruling A).
+   * browser never re-runs the six-month seed itself, so a first visit only
+   * downloads and opens a database file.
    */
   async function boot(): Promise<void> {
     try {

@@ -4,14 +4,16 @@ import type { AppState } from './store'
 import { replay, snapshotFromDb, snapshotsEqual } from '../core/replay'
 
 /**
- * In-page selftest, the headless-Chrome verification hook for Task 11. Runs
- * only when `location.search` has `selftest=1`, after boot has produced a
- * booted engine, and writes the result into `document.title` — that's the
- * one thing a headless `--dump-dom` capture can trivially assert on.
+ * In-page selftest, so a build can be checked in headless Chrome without a
+ * human clicking through it. Runs only when `location.search` has
+ * `selftest=1`, after boot has produced a booted engine, and writes the result
+ * into `document.title` — the one thing a headless browser's tab list exposes
+ * without scripting the page (see the README's selftest recipe).
  *
  * Three checks, run in order against the live, restored `Engine`:
  *   1. golden invoice  — engine.invoiceFor(1) matches golden-bill.json
- *      (admission 1, the seed's lowest-id refund invoice — see Task 10).
+ *      (admission 1: the lowest-numbered admission in the seed that ends in a
+ *      refund, the same invoice tests/golden/bill-1.txt pins for the CLI).
  *   2. C1 probe         — a raw double-insert of an ACTIVE admission onto
  *      an already-occupied bed must throw a UNIQUE/constraint error.
  *   3. replay spot-check — replay(all events, beds) folds to the same

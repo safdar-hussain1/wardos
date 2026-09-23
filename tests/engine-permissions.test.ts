@@ -7,8 +7,9 @@ import { can, type Role, type Permission } from '../src/core/permissions'
 import { rupees } from '../src/core/money'
 
 /**
- * One case per Engine command that is permission-checked (queries need no
- * permission per the brief, so VIEW_CLINICAL/VIEW_BILLING have no case here).
+ * One case per Engine command that is permission-checked. Engine queries are
+ * not permission-checked (the screens decide what to show), so
+ * VIEW_CLINICAL/VIEW_BILLING have no case here.
  * `seed` inserts the minimal fixture rows (via raw SQL, bypassing the engine)
  * that let the command succeed when the actor's role *is* permitted.
  */

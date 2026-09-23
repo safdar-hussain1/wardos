@@ -105,7 +105,7 @@ const CHARGE_KIND_LABELS: Record<string, string> = {
 
 /**
  * The results/about screen (nav label "Results"): what WardOS is, the five
- * structural claims from the design spec, the naive-baseline benchmark, the
+ * structural claims (C1–C5) and how each is tested, the naive-baseline benchmark, the
  * seeded hospital's summary figures, and an honesty section. Every number
  * here is read from the two frozen, committed JSON files the benchmark and
  * summary export scripts produce (`src/app/data/benchmark.json`,

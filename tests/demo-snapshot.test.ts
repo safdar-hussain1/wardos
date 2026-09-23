@@ -6,8 +6,9 @@ import { describe, it, expect } from 'vitest'
 import { seedHospital } from '../src/seed/seed'
 
 /**
- * Ruling A (Task 11): `public/demo.db` is a committed artifact — the browser
- * boots by fetching it, never by re-running the six-month seed in-page. This
+ * `public/demo.db` is a committed artifact — the browser boots by fetching
+ * it, never by re-running the six-month seed in the page, so a first visit
+ * only downloads a database file. This
  * guards that artifact against seed drift: if src/seed changes without
  * regenerating the snapshot (`node bin/wardos.mjs snapshot`), this fails
  * loudly instead of silently shipping a stale demo.

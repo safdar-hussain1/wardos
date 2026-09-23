@@ -10,8 +10,8 @@ import { describe, it, expect } from 'vitest'
  * non-deterministic RNG. This scans the actual source text (not behavior)
  * of every module that must hold that invariant — src/core (FixedClock's
  * *own* `new Date(startIso)` calls always take an argument, so they don't
- * trip this), src/db, src/seed, src/naive, src/bench, and the CLI added in
- * this task (src/cli) — for the three literal patterns that would break it.
+ * trip this), src/db, src/seed, src/naive, src/bench, and the CLI
+ * (src/cli) — for the three literal patterns that would break it.
  */
 
 const SCAN_DIRS = ['src/core', 'src/db', 'src/seed', 'src/naive', 'src/bench', 'src/cli']

@@ -6,7 +6,7 @@ import { Db } from '../src/db/database'
 /**
  * store.ts's `boot()`/`resetDemo()` both fetch `demo.db` through the global
  * `fetch`. Stubbing that global (Node 18+ has a real `fetch`, so this is a
- * genuine substitution, not a shim) is the seam the review asked for — no
+ * genuine substitution, not a shim) is the seam these tests use — no
  * IndexedDB involved, since `createStore` takes an injectable `KV`.
  */
 function fakeKV(): KV {

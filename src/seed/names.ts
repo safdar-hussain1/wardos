@@ -6,8 +6,8 @@
  *
  * Given-name and family-name pools each span multiple Indian linguistic
  * regions (Hindi belt, Punjabi, Bengali, Marathi, Gujarati, Tamil, Telugu,
- * Kannada, Malayalam), so the cross product is both realistic and far past
- * the ≥40 given+family combinations called for in the task brief.
+ * Kannada, Malayalam), so the cross product is realistic and far larger
+ * than the 60 patients the seed registers.
  */
 
 export const FEMALE_GIVEN_NAMES = [

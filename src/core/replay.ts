@@ -10,7 +10,7 @@ import { addP } from './money'
  * into a plain-object projection (`Snapshot`) of the *operational* tables —
  * patients, admissions, charges, invoices, dispatches, staff.
  *
- * Scope note (spec §3, C2): `users` is intentionally excluded. Password
+ * Scope note (claim C2): `users` is intentionally excluded. Password
  * hashes never enter the event log — `USER_CREATED`'s payload deliberately
  * omits `password`/`passwordHash` (see engine.ts `createUser`) — so there is
  * no way, and no need, to reconstruct the `users` table from history. A
@@ -192,7 +192,7 @@ interface AmbulanceReturnedPayload {
  * that straight through).
  *
  * `beds` is accepted (not used by this function's own logic) purely for
- * signature parity with the Task 14 time-machine consumer, which zips a
+ * signature parity with the time machine (TimeMachine.tsx), which zips a
  * Snapshot's `admissions` against bed config to render the ward board at
  * a scrubbed instant. Every field this function folds into the Snapshot
  * (including invoice room rates) already arrives via the event payloads —

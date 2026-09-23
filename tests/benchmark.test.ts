@@ -62,10 +62,9 @@ describe('runBenchmark: end-to-end report over a freshly seeded six-month hospit
     })
 
     it('produces both honest failure modes on real data: wrongful refusals AND phantom-free beds', () => {
-      // Both come out nonzero on this seed — neither assertion needed the
-      // fallback the controller allowed for ("if either is genuinely 0,
-      // assert only the nonzero one and report the other honestly"; not
-      // needed here, see the fix report).
+      // Both come out nonzero on this seed. Had either been genuinely 0, the
+      // honest move would be to assert only the nonzero one and publish the
+      // zero as a result, not to tune the seed until both appeared.
       expect(a.n2.wrongfulRefusals).toBeGreaterThan(0)
       expect(a.n2.phantomFreeBeds).toBeGreaterThan(0)
       // phantomFreeAtEnd counts only the hazards still open six months
@@ -84,9 +83,9 @@ describe('runBenchmark: end-to-end report over a freshly seeded six-month hospit
       // so nothing new happens to it (that admit is a wrongful refusal
       // instead — see above). On the committed seed this happens for
       // exactly 1 of the 9 admit crashes, so phantomFreeBeds is 8, not 9.
-      // Asserting the committed literals here (per the controller's
-      // explicit go-ahead) rather than re-deriving them with a second,
-      // parallel reference simulation in the test itself.
+      // Asserting the committed literals here rather than re-deriving them
+      // with a second, parallel reference simulation in the test itself —
+      // the hand-built case below covers the no-op rule on its own.
       expect(a.n2.crashesOnAdmit).toBe(9)
       expect(a.n2.phantomFreeBeds).toBe(8)
       expect(a.n2.phantomFreeBeds).toBeLessThanOrEqual(a.n2.crashesOnAdmit)
@@ -281,7 +280,7 @@ describe('N2 runOccupancyFlag: unit-level crash mechanics', () => {
     expect(report.crashesOnDischarge).toBe(1)
     expect(report.crashesOnAdmit).toBe(1)
     expect(report.wrongfulRefusals).toBe(1)
-    expect(report.phantomFreeBeds).toBe(0) // the no-op — this is the bug fixed in round 3
+    expect(report.phantomFreeBeds).toBe(0) // the no-op: counting it would overstate the hazard
     expect(report.phantomFreeAtEnd).toBe(0)
     // The stuck-true flag now coincidentally matches truth again (the
     // reuse made the bed genuinely occupied) — fully resynced.
@@ -355,9 +354,9 @@ describe('N3 runMsDates: hand-computed sanity check (same-day day case)', () => 
     // (03:30 UTC), discharge 17:00 IST (11:30 UTC) — same IST calendar day,
     // 8 hours elapsed. The real billing rule (nightsBetween) bills this as
     // 1 night (the calendar-day minimum); naive ms-division computes
-    // round(8h / 24h) = round(0.333) = 0 — the two DIFFER, unlike the
-    // brief's other example (18:00 IST -> 10:00 IST next day, where both
-    // true and naive agree on 1 night).
+    // round(8h / 24h) = round(0.333) = 0 — the two DIFFER, unlike an
+    // overnight stay such as 18:00 IST -> 10:00 IST next day, where both
+    // true and naive agree on 1 night.
     const admittedAtIso = '2026-08-01T03:30:00.000Z'
     const dischargedAtIso = '2026-08-01T11:30:00.000Z'
 
