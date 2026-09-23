@@ -289,6 +289,8 @@ Every figure in this README was reproduced with these versions (the lockfile pin
 - **Not networked auth.** Accounts and roles are real in structure — hashed passwords, per-command permission checks — but they protect the integrity of this local demo's data, not a networked deployment.
 - **Not durable storage.** The browser database lives in IndexedDB, which the browser may evict under storage pressure. "Reset demo" always restores a clean seeded hospital, so nothing is ever unrecoverable.
 - **Not a medical device.** It manages beds, bills, payroll, and dispatch — not diagnoses or treatment.
+- **Not per-segment billing.** A patient moved between beds is billed at the rate of the last bed for the whole stay, because discharge reads the admission's current bed. In the seeded history, 32 of the 87 invoices come from stays that used a bed with a different rate — admission 1, for one, started in a ₹5,000 private room and is billed all 4 nights at the ₹2,800 twin-sharing rate. It is a known simplification; the fix is to bill each segment of a stay at its own bed's rate.
+- **Not a tamper-proof log.** `verify` proves the tables match the event log, not that the log itself is genuine. Anyone holding the database file can drop the append-only trigger and edit an event together with its row, or change a bed's rate, and `verify` still passes. The fix is a hash chain over the events with a signed head.
 
 ## License
 

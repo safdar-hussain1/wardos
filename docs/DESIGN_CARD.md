@@ -30,6 +30,8 @@ The allowlist policy: **verified-inert URL-shaped strings only.** Three prefixes
 
 One narrower allowance covers the page's author credit. The HTML comment and the footer link in `index.html`, and the `console.info` signature printed by the app entry point, carry the author's GitHub URLs. They are allowed as exact text in exactly those places — not as URLs — so the same address anywhere else (a `fetch` in the bundle, a `<script src>`, a `<link href>`) still fails the scan. The footer link is a navigation the visitor may choose to follow, never a request the app makes. The SEO tags (canonical URL, Open Graph and Twitter tags, JSON-LD) are crawler metadata the browser never fetches, and the scan skips them.
 
+**What `verify` does not prove.** `verify` replays the event log and compares the result with the tables, so an edit to a row alone is caught and named down to the field. It does not prove the log itself is genuine: the append-only triggers are schema objects, and anyone holding the database file can drop them and edit an event together with its row — both copies then agree and `verify` passes. Bed rates are not in the log at all (beds are configuration passed to `replay`), so changing one also passes. Proving the history untouched needs a hash chain over the events with a signed head; WardOS does not have one.
+
 **Stated limitation:** this is a static scan of the shipped text. It cannot, in principle, catch a URL assembled at runtime from fragments. No such construction exists in this codebase, the app's two runtime fetches are relative by construction, and the dependency surface is small enough to read — but the guarantee the test provides is "no absolute origin appears in the shipped bytes", and it is stated as exactly that.
 
 ## Privacy stance
@@ -45,6 +47,8 @@ One narrower allowance covers the page's author credit. The HTML comment and the
 **IndexedDB eviction.** Browser storage is best-effort; the browser may evict it under pressure. Writes are debounced ~500 ms and flushed on `pagehide`, but the honest framing is: local edits to the demo are durable in the common case, not guaranteed. "Reset demo" always restores the clean seeded hospital, so no failure mode is unrecoverable.
 
 **Frozen-clock demo semantics.** The demo anchors at a fixed instant (2026-08-01T03:30:00.000Z — 09:00 IST) and every command draws time from an injected clock. Published figures are dated, not live; "today" on the site never drifts. This is what makes the seed byte-reproducible, the benchmark rerunnable to an identical JSON, and the time machine meaningful — determinism is a feature, and the cost (the demo does not age) is stated.
+
+**Transfers bill at the last bed's rate.** `discharge` prices every night at the rate of the admission's current bed, and `transfer` overwrites that bed. A stay that moves between beds with different rates is therefore billed entirely at the last bed's rate. In the seeded history 38 of the 87 invoices involve a transfer and 32 of those used a bed with a different rate; admission 1 (the golden invoice) was admitted to a ₹5,000 private room and is billed 4 nights at the ₹2,800 twin-sharing rate. This is a known simplification. The event log already records every transfer, so the fix — per-segment billing, each part of the stay at its own bed's rate — can be computed from those events.
 
 ## Benchmark methodology, honestly
 
