@@ -11,7 +11,7 @@ import { describe, it, expect } from 'vitest'
  * favicon). Each is asserted twice: in the source, and in docs/ — the
  * committed production build that GitHub Pages serves.
  *
- * docs/ is read as it stands. tests/bundle-privacy.test.ts rebuilds it, and
+ * docs/ is read as it stands. tests/bundle-privacy.test.ts builds it afresh, and
  * vitest.config.ts runs the two files one after the other in a single
  * worker, so this file never reads a half-written build. A failure on the
  * docs/ side only means the committed build is stale: run `npm run build`

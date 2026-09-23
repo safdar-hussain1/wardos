@@ -83,7 +83,7 @@ const URL_PATTERN = /https?:\/\/[^\s"'`)]*/g
 
 beforeAll(() => {
   // `build.emptyOutDir: false` (vite.config.ts) is deliberate — docs/demo.db
-  // and the other public/-copied files must survive a rebuild — but it
+  // and the other public/-copied files must survive a fresh build — but it
   // means old hashed chunks never get swept away on their own. Clear
   // docs/assets before rebuilding so this test (and the committed docs/,
   // cleaned the same way before commit) only ever contains bundles the
