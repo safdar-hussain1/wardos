@@ -276,6 +276,7 @@ export class Engine {
 
   addStaff(actor: Actor, s: StaffInput): number {
     this.requirePermission(actor, 'MANAGE_USERS')
+    this.requirePaise(s.base_paise)
     return this.runCommand(() => {
       this.db.run(
         `INSERT INTO staff (name,type,department,base_paise,years_service,specialty,icu_assigned,night_shifts,on_call,joined_at)

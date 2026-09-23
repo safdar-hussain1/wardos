@@ -653,8 +653,36 @@ describe('Engine', () => {
     })
   })
 
+  describe('money boundary validation (addStaff.base_paise)', () => {
+    // Asserting requirePaise's own message pins where the rejection happens:
+    // at the command boundary, before any transaction opens — not later, via
+    // the schema's CHECK (base_paise > 0), which would let 1.5 through.
+    for (const bad of [1.5, -100, NaN]) {
+      it(`addStaff rejects base_paise=${bad} at the boundary and persists no staff row or event`, async () => {
+        const { db, engine } = await setup()
+        const before = eventCount(db)
+        expect(() =>
+          engine.addStaff(ADMIN, {
+            name: 'New Staff',
+            type: 'ADMIN',
+            department: 'Admin',
+            base_paise: bad,
+            years_service: 0,
+            specialty: null,
+            icu_assigned: 0,
+            night_shifts: 0,
+            on_call: 0,
+            joined_at: ANCHOR_ISO,
+          }),
+        ).toThrow('amount must be a non-negative integer amount in paise')
+        expect(eventCount(db)).toBe(before)
+        expect(db.all(`SELECT * FROM staff`)).toHaveLength(0)
+      })
+    }
+  })
+
   describe('constraint error classification', () => {
-    it('a CHECK constraint violation (addStaff base_paise <= 0) is a RuleViolationError with a human message, not the raw SQLite text verbatim', async () => {
+    it('a CHECK constraint violation (addStaff base_paise = 0) is a RuleViolationError with a human message, not the raw SQLite text verbatim', async () => {
       const { engine } = await setup()
       let caught: unknown
       try {
@@ -662,7 +690,7 @@ describe('Engine', () => {
           name: 'Bad Staff',
           type: 'ADMIN',
           department: 'Admin',
-          base_paise: -100, // schema: CHECK (base_paise > 0)
+          base_paise: 0, // passes the boundary check (a valid, non-negative amount); the schema's CHECK (base_paise > 0) rejects it
           years_service: 0,
           specialty: null,
           icu_assigned: 0,

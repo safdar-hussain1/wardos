@@ -12,7 +12,7 @@ A hospital's whole operating picture — every bed, every bill, every shift — 
   <img src="docs/shots/deck-dark.png" width="49%" alt="WardOS command deck, dark theme — the same live figures" />
 </p>
 
-**339 tests · zero server · every byte stays on your device**
+**343 tests · zero server · every byte stays on your device**
 
 ## What's in it
 
@@ -115,7 +115,7 @@ Every headline claim has a test that fails when the enforcement is deliberately 
 | C1 | Double-booking a bed is structurally impossible | Partial unique index on active admissions per bed, in the schema itself — not application code | Delete the `uq_active_bed` index from `schema.sql` | 4 tests across 3 files |
 | C2 | The event log is sufficient: replaying it reproduces the exact live state | Every mutating command appends one event, in the same transaction, before it commits | Turn `CHARGE_ADDED` into a no-op during replay | 4 tests across 3 files |
 | C3 | Billing direction is right: an over-deposit yields a refund, never a negative charge | One balance computation — room total plus extras, minus deposit — with the sign read afterward, not chosen upfront | Flip the sign in the balance computation | 11 tests across 5 files |
-| C4 | Money never floats | Every amount is an integer number of paise end to end; deposits and charges are validated at the command boundary | Drop the `requirePaise` boundary check from `addCharge` | 2 tests in 1 file |
+| C4 | Money never floats | Every amount is an integer number of paise end to end, validated at the boundary of every command that takes one | Drop the `requirePaise` boundary check from `addCharge` | 2 tests in 1 file |
 | C5 | Permissions are enforced in the command layer, not the interface | Every command checks the actor's role against a permission matrix before touching the database | Drop the `requirePermission` check from `discharge` | 3 tests in 1 file |
 
 ## Quick start
@@ -124,7 +124,7 @@ Every headline claim has a test that fails when the enforcement is deliberately 
 git clone https://github.com/safdar-hussain1/wardos
 cd wardos
 npm ci         # Node 20.19+ or 22.12+; postinstall copies sql-wasm.wasm into public/
-npm test       # 339 tests in 20 files
+npm test       # 343 tests in 20 files
 npm run dev    # the app with hot reload; Vite prints the local URL
 ```
 
@@ -166,7 +166,7 @@ For example `http://localhost:8320/?as=billing&screen=billing`. Payroll and the 
 ### Tests and checks
 
 ```sh
-npm test                                        # the full suite: 339 tests in 20 files
+npm test                                        # the full suite: 343 tests in 20 files
 npx vitest run tests/billing.test.ts            # one file
 npx tsc -b && npx tsc -p tsconfig.bench.json    # type-check the app and the benchmark, as CI does
 ```
@@ -259,7 +259,7 @@ wardos/
 │   ├── bench/    benchmark harness and truth oracle
 │   ├── cli/      the CLI over the engine
 │   └── app/      React SPA — renders engine state, issues engine commands
-├── tests/        20 files, 339 tests
+├── tests/        20 files, 343 tests
 └── index.html    the page template: SEO tags, theme boot, the static first paint
 ```
 
