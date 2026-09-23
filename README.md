@@ -123,7 +123,7 @@ Every headline claim has a test that fails when the enforcement is deliberately 
 ```sh
 git clone https://github.com/safdar-hussain1/wardos
 cd wardos
-npm ci         # Node 20.19+; postinstall copies sql-wasm.wasm into public/
+npm ci         # Node 20.19+ or 22.12+; postinstall copies sql-wasm.wasm into public/
 npm test       # 339 tests in 20 files
 npm run dev    # the app with hot reload; Vite prints the local URL
 ```
