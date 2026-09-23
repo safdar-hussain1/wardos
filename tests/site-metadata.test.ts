@@ -11,11 +11,14 @@ import { describe, it, expect } from 'vitest'
  * favicon). Each is asserted twice: in the source, and in docs/ — the
  * committed production build that GitHub Pages serves.
  *
- * docs/ is read as it stands. tests/bundle-privacy.test.ts builds it afresh, and
- * vitest.config.ts runs the two files one after the other in a single
- * worker, so this file never reads a half-written build. A failure on the
- * docs/ side only means the committed build is stale: run `npm run build`
- * and commit docs/.
+ * docs/ is read as it stands when this file runs. tests/bundle-privacy.test.ts
+ * builds docs/ afresh, and vitest.config.ts runs the two files one after the
+ * other in a single worker, so this file never reads a half-written build.
+ * Which of the two runs first is vitest's choice (it puts failed, slower or
+ * larger files first), so the docs/ checks here may see the fresh build or
+ * the committed one — both must carry the marks. Whether the committed docs/
+ * is exactly what the source builds is checked separately, by CI:
+ * `git diff --exit-code -- docs/` after `npm run build`.
  */
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), '..')
