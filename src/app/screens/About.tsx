@@ -78,7 +78,7 @@ const CLAIMS: { id: string; claim: string; enforcedBy: string; testedBy: string 
     id: 'C4',
     claim: 'Money never floats',
     enforcedBy: 'Every amount is an integer number of paise, end to end — there is no rupee-as-decimal representation anywhere in the money path',
-    testedBy: 'Property tests over thousands of operations assert no drift, plus a source scan for float-money patterns in the billing path',
+    testedBy: 'Property tests over thousands of operations assert no drift, and a deposit or charge of 1.5, −100 or NaN paise must be rejected before anything is written',
   },
   {
     id: 'C5',
