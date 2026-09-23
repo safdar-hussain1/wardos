@@ -123,7 +123,7 @@ Every headline claim has a test that fails when the enforcement is deliberately 
 ```sh
 git clone https://github.com/safdar-hussain1/wardos
 cd wardos
-npm ci         # Node 20.19+ or 22.12+; postinstall copies sql-wasm.wasm into public/
+npm ci         # needs Node 20.19+ or 22.12+ (CI tests 22 and 24); postinstall copies sql-wasm.wasm into public/
 npm test       # 343 tests in 20 files
 npm run dev    # the app with hot reload; Vite prints the local URL
 ```
@@ -140,7 +140,7 @@ npm run dev    # the app with hot reload; Vite prints the local URL
 
 ## Every command
 
-Run from the repo root. Every line below was run on a fresh copy of this repository, on Node 20 and Node 22.
+Run from the repo root. Every line below was run on a fresh copy of this repository, on Node 22 and Node 24.
 
 ### The app
 
@@ -246,7 +246,7 @@ One engine, three surfaces. The browser app, the CLI, and the test suite all dri
 
 ```
 wardos/
-├── .github/      workflows/tests.yml — CI: type-check, tests and build on Node 20 and 22
+├── .github/      workflows/tests.yml — CI on Node 22 and 24: type-check, tests, build, and a check that docs/ is exactly the fresh build
 ├── bin/          wardos.mjs — CLI entry
 ├── docs/         committed production build — the GitHub Pages site (plus ARCHITECTURE.md, DESIGN_CARD.md, shots/)
 ├── public/       demo.db snapshot, sql-wasm.wasm, favicon, og-image.png, sitemap.xml — copied into docs/ by the build
@@ -264,6 +264,23 @@ wardos/
 ```
 
 Details in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md). Invariants, threat model, and what the system does *not* claim: [docs/DESIGN_CARD.md](docs/DESIGN_CARD.md).
+
+## Tech stack
+
+TypeScript throughout. The interface is React 19, built with Vite 8. The database is SQLite compiled to WebAssembly (sql.js), saved to the browser's IndexedDB between visits; passwords are hashed with bcryptjs. The tests run on Vitest, with fast-check for the property tests. The command-line tool runs the same TypeScript sources through vite-node, so there is no second build to keep in step. GitHub Actions runs the checks on every push, and GitHub Pages serves the site from `docs/`.
+
+Every figure in this README was reproduced with these versions (the lockfile pins them):
+
+| Tool | Version |
+|---|---|
+| Node | 23.7.0 locally; CI runs 22 and 24 |
+| TypeScript | 6.0.3 |
+| React | 19.2.8 |
+| Vite | 8.2.1 |
+| sql.js | 1.14.1 |
+| bcryptjs | 2.4.3 |
+| Vitest | 1.6.1 |
+| fast-check | 3.23.2 |
 
 ## What this is not
 
