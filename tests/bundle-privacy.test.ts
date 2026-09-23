@@ -44,6 +44,20 @@ import { describe, it, expect, beforeAll } from 'vitest'
  *
  * Any other absolute origin — an analytics script, a CDN font, a hardcoded
  * API endpoint — fails this test.
+ *
+ * One narrower allowance: the page credits its author, and those credits
+ * carry the author's GitHub URLs. They are allowed as exact text in exactly
+ * the places they belong (AUTHORSHIP_MARKS below), not as URLs: the HTML
+ * comment and the footer link's opening tag in index.html, and the
+ * console.info signature string in the JS bundle. The footer link is a
+ * navigation the visitor may choose to follow; the comment and the console
+ * line are text. None of them is ever passed to fetch/XMLHttpRequest/
+ * WebSocket. Everything else stays as strict as before — the same URL
+ * anywhere else (a fetch in the bundle, a <script src>, a <link href>), or
+ * a different path on the same account, still fails. The page's other
+ * personal URLs (the github.io canonical/og:url/og:image and the LinkedIn
+ * profile in the JSON-LD author) sit inside the SEO metadata that
+ * stripInertSeoMetadata removes, so they never reach the scan.
  */
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), '..')
@@ -51,6 +65,19 @@ const docsDir = join(repoRoot, 'docs')
 const assetsDir = join(docsDir, 'assets')
 
 const ALLOWED_PREFIXES = ['http://www.w3.org/', 'https://react.dev/errors/', 'https://rolldown.rs/']
+
+const AUTHORSHIP_MARKS = [
+  // index.html: the source comment
+  '<!-- WardOS · built by Safdar Hussain · https://github.com/safdar-hussain1 -->',
+  // index.html: the footer credit's opening tag
+  '<a href="https://github.com/safdar-hussain1" rel="author">',
+  // JS bundle: the console.info signature from src/app/main.tsx
+  'WardOS — built by Safdar Hussain · https://github.com/safdar-hussain1/wardos',
+]
+
+function withoutAuthorshipMarks(text: string): string {
+  return AUTHORSHIP_MARKS.reduce((t, mark) => t.split(mark).join(''), text)
+}
 
 const URL_PATTERN = /https?:\/\/[^\s"'`)]*/g
 
@@ -117,7 +144,7 @@ describe('production bundle privacy', () => {
   it('no docs/assets/*.js bundle contains an absolute network origin outside the allowlist', () => {
     const offenders: string[] = []
     for (const file of jsBundleFiles()) {
-      const text = readFileSync(file, 'utf8')
+      const text = withoutAuthorshipMarks(readFileSync(file, 'utf8'))
       for (const url of findDisallowedUrls(text)) {
         offenders.push(`${file}: ${url.slice(0, 80)}`)
       }
@@ -141,12 +168,12 @@ describe('production bundle privacy', () => {
   })
 
   it('docs/index.html contains no absolute network origin outside inert SEO metadata', () => {
-    const text = stripInertSeoMetadata(readFileSync(join(docsDir, 'index.html'), 'utf8'))
+    const text = withoutAuthorshipMarks(stripInertSeoMetadata(readFileSync(join(docsDir, 'index.html'), 'utf8')))
     expect(findDisallowedUrls(text)).toEqual([])
   })
 
   it('docs/index.html loads its script/stylesheet from relative (same-origin) paths', () => {
-    const text = stripInertSeoMetadata(readFileSync(join(docsDir, 'index.html'), 'utf8'))
+    const text = withoutAuthorshipMarks(stripInertSeoMetadata(readFileSync(join(docsDir, 'index.html'), 'utf8')))
     const srcs = [...text.matchAll(/(?:src|href)="([^"]+)"/g)].map((m) => m[1])
     expect(srcs.length).toBeGreaterThan(0)
     for (const src of srcs) {

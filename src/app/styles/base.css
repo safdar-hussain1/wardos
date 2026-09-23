@@ -630,6 +630,29 @@ select:focus {
   color: var(--accent);
 }
 
+/* -- author credit ----------------------------------------------------------
+   Static markup in index.html, outside the React root, so it sits under every
+   screen and is in the page source before any script runs. */
+
+.site-credit {
+  padding: 0 24px 28px;
+  text-align: center;
+  font-size: 0.65rem;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--ink-3);
+}
+
+.site-credit a {
+  color: var(--accent);
+  text-decoration: none;
+}
+
+.site-credit a:hover {
+  text-decoration: underline;
+}
+
 /* -- ward board (the hero) ------------------------------------------------- */
 
 .census-line {
