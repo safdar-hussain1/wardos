@@ -48,7 +48,7 @@ describe('seedHospital: shape of six months of generated history', () => {
     expect(events.length).toBe(seeded.commandCount)
   })
 
-  it('all five demo accounts authenticate with their documented passwords and roles', () => {
+  it('all five demo accounts authenticate with the passwords and roles shown on the login screen and in the README', () => {
     for (const acc of DEMO_ACCOUNTS) {
       const actor = seeded.engine.authenticate(acc.username, acc.password)
       expect(actor.role).toBe(acc.role)
@@ -89,7 +89,7 @@ describe('seedHospital: shape of six months of generated history', () => {
     expect(equal).toBe(true)
   })
 
-  it('bootstraps DEMO_ACCOUNTS via the documented userId:0 system actor', () => {
+  it('bootstraps DEMO_ACCOUNTS via the userId:0 system actor (BOOTSTRAP in seed.ts)', () => {
     const events = seeded.engine.eventsLog()
     const userCreatedEvents = events.filter((e) => e.action === 'USER_CREATED')
     expect(userCreatedEvents.length).toBe(DEMO_ACCOUNTS.length)

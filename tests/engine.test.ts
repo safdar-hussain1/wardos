@@ -638,7 +638,7 @@ describe('Engine', () => {
       })
     }
 
-    it('rejects with the exact mandated message', async () => {
+    it('rejects with the exact expected message', async () => {
       const { engine } = await setup()
       const patientId = engine.registerPatient(ADMIN, {
         name: 'P1',

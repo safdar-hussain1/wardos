@@ -112,8 +112,8 @@ function randomPhone(rng: () => number): string {
 }
 
 /** Weighted stay length in nights: mostly short stays/day cases, a
- * meaningful minority medium, a few long ICU-style stays — spans the
- * documented 0–20 night range. */
+ * meaningful minority medium, a few long ICU-style stays — 0 to 20 nights
+ * in all. */
 function pickStayNights(rng: () => number): number {
   const r = rng()
   if (r < 0.35) return randInt(rng, 0, 2)
@@ -576,11 +576,14 @@ async function runSeedHospital(): Promise<SeedResult> {
       }
     }
 
-    // Registration and admission probabilities are tuned so that, across
-    // the ~1,450 ticks a ~180-day run produces, the simulation lands close
-    // to the documented "~60 patients, ~90 admissions" shape rather than
-    // hyper-cycling the same 60 patients through dozens of readmissions
-    // each.
+    // Registration and admission probabilities are tuned so that, across a
+    // six-month run of ticks 45 minutes to 5 hours apart, the simulation
+    // registers its 60 patients (the cap below) and makes 104 admissions in
+    // all, rather than hyper-cycling the same 60 patients through dozens of
+    // readmissions each. tests/seed.test.ts asserts the shape that matters at
+    // the anchor instant (15–22 active admissions, a free and an occupied bed
+    // in every ward, at least 5 refunds, over 400 events), and
+    // tests/demo-snapshot.test.ts pins the exact result byte for byte.
     if (registeredPatients.length < 60 && rng() < 0.05) {
       registerNextPatient()
     }
