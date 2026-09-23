@@ -1452,6 +1452,8 @@ td.num {
   box-shadow: var(--shadow-card);
   position: relative;
   overflow: hidden;
+  /* a size container, so a long rupee amount can scale to the tile's width */
+  container-type: inline-size;
 }
 
 /* the chart tick: a short accent rule, top-left of every tile */
@@ -1486,6 +1488,8 @@ td.num {
 .stat-tile__value--money {
   font-family: var(--font-mono);
   font-size: 1.25rem;
+  /* shrink to fit a narrow tile (tablets, phones) instead of being clipped */
+  font-size: min(1.25rem, 11.5cqi);
   font-weight: 600;
   letter-spacing: normal;
   padding-top: 8px;
@@ -1812,7 +1816,7 @@ td.num {
     gap: 8px;
   }
 
-  .stat-tile__value {
+  .stat-tile__value:not(.stat-tile__value--money) {
     font-size: 1.875rem;
   }
 
