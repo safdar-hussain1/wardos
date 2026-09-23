@@ -89,9 +89,19 @@ export default function App() {
   }, [actorId])
 
   if (state.status === 'booting') {
+    // The same markup as the fallback inside #root in index.html (the page's
+    // one static <h1>), so the first paint, this render and the login screen
+    // that follows all keep the brand in the same place.
     return (
-      <main className="app-shell app-shell--centered">
-        <p className="status-line">Booting WardOS…</p>
+      <main className="login-shell">
+        <div className="brand brand--login">
+          <svg className="brand-mark" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+            <rect x="1" y="1" width="22" height="22" rx="6" fill="var(--accent)" />
+            <path d="M10 5.5h4v4.5H18.5v4H14v4.5h-4V14H5.5v-4H10z" fill="var(--accent-contrast)" />
+          </svg>
+          <h1>WardOS</h1>
+        </div>
+        <p className="login-tagline">Booting WardOS…</p>
       </main>
     )
   }

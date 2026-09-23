@@ -3,43 +3,66 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>WardOS — Hospital Management System in Your Browser</title>
-    <meta
-      name="description"
-      content="A hospital management system that runs entirely in your browser: real SQLite (WASM), 32 beds, admissions, billing in integer paise, an event-sourced audit log, and a time machine over six months of history. No server; nothing leaves your device."
-    />
+    <meta name="description" content="Run a 32-bed hospital in your browser: admissions, billing, payroll and ambulances on a real SQLite database with a full audit log. Nothing leaves your device." />
     <meta name="author" content="Safdar Hussain" />
     <meta name="google-site-verification" content="0SIEfExLTSQj1qvnHWF5A5fY58KVl2lpIEnePP9CtI0" />
     <link rel="canonical" href="https://safdar-hussain1.github.io/wardos/" />
-    <meta property="og:title" content="WardOS — Hospital Management System in Your Browser" />
-    <meta
-      property="og:description"
-      content="Real SQLite in the browser, event-sourced audit log, schema-enforced invariants, zero server. Sign in and run the hospital."
-    />
-    <meta property="og:url" content="https://safdar-hussain1.github.io/wardos/" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+
     <meta property="og:type" content="website" />
-    <meta property="og:site_name" content="WardOS" />
-    <meta name="twitter:card" content="summary" />
+    <meta property="og:site_name" content="Safdar Hussain" />
+    <meta property="og:title" content="WardOS — Hospital Management System in Your Browser" />
+    <meta property="og:description" content="Run a 32-bed hospital in your browser: admissions, billing, payroll and ambulances on a real SQLite database with a full audit log. Nothing leaves your device." />
+    <meta property="og:url" content="https://safdar-hussain1.github.io/wardos/" />
+    <meta property="og:image" content="https://safdar-hussain1.github.io/wardos/og-image.png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="The WardOS command deck: patients, active admissions, free beds, outstanding balance and refunds, above occupancy by ward and revenue by charge type." />
+
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="WardOS — Hospital Management System in Your Browser" />
+    <meta name="twitter:description" content="Run a 32-bed hospital in your browser: admissions, billing, payroll and ambulances on a real SQLite database with a full audit log. Nothing leaves your device." />
+    <meta name="twitter:image" content="https://safdar-hussain1.github.io/wardos/og-image.png" />
+    <meta name="twitter:image:alt" content="The WardOS command deck: patients, active admissions, free beds, outstanding balance and refunds, above occupancy by ward and revenue by charge type." />
+
     <script type="application/ld+json">
       {
         "@context": "https://schema.org",
-        "@type": "SoftwareApplication",
-        "name": "WardOS",
-        "alternateName": "WardOS Hospital Management System",
-        "description": "A local-first hospital management system that runs entirely in the browser: real SQLite (WASM), event-sourced audit log, structural invariants, zero server.",
-        "url": "https://safdar-hussain1.github.io/wardos/",
-        "applicationCategory": "MedicalApplication",
-        "operatingSystem": "Web browser",
-        "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
-        "codeRepository": "https://github.com/safdar-hussain1/wardos",
-        "author": {
-          "@type": "Person",
-          "name": "Safdar Hussain",
-          "url": "https://github.com/safdar-hussain1",
-          "sameAs": ["https://www.linkedin.com/in/safdar-hussain-a8a61b248"]
-        }
+        "@graph": [
+          {
+            "@type": "WebApplication",
+            "name": "WardOS",
+            "url": "https://safdar-hussain1.github.io/wardos/",
+            "description": "Run a 32-bed hospital in your browser: admissions, billing, payroll and ambulances on a real SQLite database with a full audit log. Nothing leaves your device.",
+            "image": "https://safdar-hussain1.github.io/wardos/og-image.png",
+            "applicationCategory": "BusinessApplication",
+            "operatingSystem": "Any (runs in a web browser)",
+            "browserRequirements": "Requires JavaScript, WebAssembly and IndexedDB",
+            "isAccessibleForFree": true,
+            "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
+            "author": {
+              "@type": "Person",
+              "name": "Safdar Hussain",
+              "url": "https://github.com/safdar-hussain1",
+              "sameAs": ["https://github.com/safdar-hussain1", "https://www.linkedin.com/in/safdar-hussain-a8a61b248"]
+            }
+          },
+          {
+            "@type": "SoftwareSourceCode",
+            "name": "WardOS",
+            "codeRepository": "https://github.com/safdar-hussain1/wardos",
+            "programmingLanguage": ["TypeScript", "SQL"],
+            "license": "https://opensource.org/licenses/MIT",
+            "author": {
+              "@type": "Person",
+              "name": "Safdar Hussain",
+              "url": "https://github.com/safdar-hussain1",
+              "sameAs": ["https://github.com/safdar-hussain1", "https://www.linkedin.com/in/safdar-hussain-a8a61b248"]
+            }
+          }
+        ]
       }
     </script>
     <script>
@@ -65,7 +88,19 @@
     </script>
   </head>
   <body>
-    <div id="root"></div>
+    <div id="root">
+      <!-- Shown until the app mounts: App.tsx renders this same markup while it boots. -->
+      <main class="login-shell">
+        <div class="brand brand--login">
+          <svg class="brand-mark" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+            <rect x="1" y="1" width="22" height="22" rx="6" fill="var(--accent)" />
+            <path d="M10 5.5h4v4.5H18.5v4H14v4.5h-4V14H5.5v-4H10z" fill="var(--accent-contrast)" />
+          </svg>
+          <h1>WardOS</h1>
+        </div>
+        <p class="login-tagline">Booting WardOS…</p>
+      </main>
+    </div>
     <footer class="site-credit">
       Built by <a href="https://github.com/safdar-hussain1" rel="author">Safdar Hussain</a>
     </footer>

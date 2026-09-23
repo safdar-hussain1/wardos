@@ -300,20 +300,6 @@ select:focus {
   min-height: 100svh;
 }
 
-.app-shell--centered {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  text-align: center;
-}
-
-.status-line {
-  font-family: var(--font-serif);
-  font-style: italic;
-  font-size: 1.25rem;
-  color: var(--ink-3);
-}
-
 /* two-tier masthead: brand + session on top, the nav rail beneath */
 .app-header {
   display: grid;
