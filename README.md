@@ -1,15 +1,18 @@
 # WardOS
 
+[![tests](https://github.com/safdar-hussain1/wardos/actions/workflows/tests.yml/badge.svg)](https://github.com/safdar-hussain1/wardos/actions/workflows/tests.yml)
+[![license: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+
+A hospital's whole operating picture — every bed, every bill, every shift — running entirely in your browser. Beds, admissions, billing, payroll, ambulance dispatch, role-based access, and a complete audit history, backed by a real SQLite database (WASM) that lives on your device. The published site is not a demo of the product; it **is** the product, seeded with a deterministic six-month hospital so you can use every feature within seconds of the page loading.
+
+**Live:** https://safdar-hussain1.github.io/wardos/ — pick a demo account on the login screen, or jump straight in as the [administrator](https://safdar-hussain1.github.io/wardos/?as=admin).
+
 <p align="center">
   <img src="docs/shots/deck-light.png" width="49%" alt="WardOS command deck, light theme — census, occupancy by ward, revenue mix, recent activity" />
   <img src="docs/shots/deck-dark.png" width="49%" alt="WardOS command deck, dark theme — the same live figures" />
 </p>
 
-A hospital's whole operating picture — every bed, every bill, every shift — running entirely in your browser. Beds, admissions, billing, payroll, ambulance dispatch, role-based access, and a complete audit history, backed by a real SQLite database (WASM) that lives on your device. The published site is not a demo of the product; it **is** the product, seeded with a deterministic six-month hospital so you can use every feature within seconds of the page loading.
-
-**Live:** https://safdar-hussain1.github.io/wardos/
-
-**318 tests · zero server · every byte stays on your device**
+**339 tests · zero server · every byte stays on your device**
 
 ## What's in it
 
@@ -112,37 +115,18 @@ Every headline claim has a test that fails when the enforcement is deliberately 
 | C1 | Double-booking a bed is structurally impossible | Partial unique index on active admissions per bed, in the schema itself — not application code | Delete the `uq_active_bed` index from `schema.sql` | 4 tests across 3 files |
 | C2 | The event log is sufficient: replaying it reproduces the exact live state | Every mutating command appends one event, in the same transaction, before it commits | Turn `CHARGE_ADDED` into a no-op during replay | 4 tests across 3 files |
 | C3 | Billing direction is right: an over-deposit yields a refund, never a negative charge | One balance computation — room total plus extras, minus deposit — with the sign read afterward, not chosen upfront | Flip the sign in the balance computation | 11 tests across 5 files |
-| C4 | Money never floats | Every amount is an integer number of paise end to end, validated at every command boundary | Drop the `requirePaise` boundary check from `addCharge` | 2 tests in 1 file |
+| C4 | Money never floats | Every amount is an integer number of paise end to end; deposits and charges are validated at the command boundary | Drop the `requirePaise` boundary check from `addCharge` | 2 tests in 1 file |
 | C5 | Permissions are enforced in the command layer, not the interface | Every command checks the actor's role against a permission matrix before touching the database | Drop the `requirePermission` check from `discharge` | 3 tests in 1 file |
 
-## Install and run
+## Quick start
 
 ```sh
 git clone https://github.com/safdar-hussain1/wardos
 cd wardos
-npm ci
-npm test       # 318 tests, 19 files
-npm run dev    # the app, on a local Vite server
+npm ci         # Node 20.19+; postinstall copies sql-wasm.wasm into public/
+npm test       # 339 tests in 20 files
+npm run dev    # the app with hot reload; Vite prints the local URL
 ```
-
-The same engine runs headless from the command line:
-
-```sh
-node bin/wardos.mjs seed   --db /tmp/hospital.db   # seed a fresh six-month hospital
-node bin/wardos.mjs beds   --db /tmp/hospital.db   # every bed and its occupancy state
-node bin/wardos.mjs report --db /tmp/hospital.db   # census, revenue, payroll, outstanding
-node bin/wardos.mjs bill 1 --db /tmp/hospital.db   # itemized invoice for admission 1
-node bin/wardos.mjs verify --db /tmp/hospital.db   # replay(events) vs live db; exit 1 on mismatch
-node bin/wardos.mjs export --db /tmp/hospital.db   # write summary.json for the Results screen
-```
-
-`verify` on a fresh seed prints:
-
-```
-PASS: replay of 1313 events matches the live database exactly.
-```
-
-Seeding is deterministic: two seeds in separate processes produce byte-identical databases (a test pins the SHA-256 of the committed snapshot to a fresh seed's).
 
 **Demo accounts** (shown as clickable cards on the login screen):
 
@@ -154,7 +138,89 @@ Seeding is deterministic: two seeds in separate processes produce byte-identical
 | `nurse.k` | `wardos-ward` | Nurse |
 | `billing` | `wardos-desk2` | Billing clerk |
 
-**URL hooks:** `?as=reception` logs straight in as a demo role; `?screen=billing` deep-links the first session to a screen (`deck`, `wards`, `billing`, `payroll`, `ambulances`, `audit`, `time-machine`, `about`); `?selftest=1` runs three in-page engine checks (golden invoice, C1 constraint probe, replay spot-check) and writes `WARDOS-SELFTEST: PASS 3/3` into the document title for headless verification.
+## Every command
+
+Run from the repo root. Every line below was run on a fresh copy of this repository, on Node 20 and Node 22.
+
+### The app
+
+```sh
+npm run dev                                   # dev server with hot reload; Vite prints the local URL
+npm run dev -- --port 8320                    # the same, on a port you choose
+npm run build                                 # type-check (tsc -b), then build the site into docs/
+python3 -m http.server 8320 --directory docs  # serve the built site, then open http://localhost:8320/
+```
+
+The built site needs a web server. It is an ES-module app that fetches `sql-wasm.wasm` and `demo.db` when it starts, and browsers block both on a `file://` page — opened straight from disk it stays on "Booting WardOS…".
+
+URL options, on the dev server or the built site:
+
+| Option | Valid values | What it does |
+|---|---|---|
+| `?as=<who>` | a role — `admin`, `reception`, `doctor`, `nurse`, `billing` (any case) — or a demo username such as `dr.rao` | logs straight in as that demo account |
+| `?screen=<key>` | `deck`, `wards` (or `ward`), `billing`, `payroll`, `ambulances`, `audit`, `time-machine`, `about` | opens that screen for the first session; use it with `?as=` |
+| `?selftest=1` | — | runs three engine checks in the page (golden invoice, C1 constraint probe, replay spot-check) and writes `WARDOS-SELFTEST: PASS 3/3`, or the first failure, into the tab title |
+
+For example `http://localhost:8320/?as=billing&screen=billing`. Payroll and the audit trail are administrator-only screens, so pair them with `?as=admin`.
+
+### Tests and checks
+
+```sh
+npm test                                        # the full suite: 339 tests in 20 files
+npx vitest run tests/billing.test.ts            # one file
+npx tsc -b && npx tsc -p tsconfig.bench.json    # type-check the app and the benchmark, as CI does
+```
+
+`npm test` builds `docs/` again along the way, because the privacy test scans a fresh production build. On an unchanged tree that build is byte-identical, so `git status` stays clean; after a source change, commit the new `docs/` with it.
+
+The in-page selftest, run headless (macOS Chrome path; on Linux use `google-chrome`):
+
+```sh
+python3 -m http.server 8320 --directory docs >/dev/null 2>&1 & SERVER=$!
+"/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" --headless=new --remote-debugging-port=8321 \
+  --user-data-dir="$(mktemp -d)" "http://localhost:8320/?selftest=1" >/dev/null 2>&1 & CHROME=$!
+sleep 5; curl -s http://127.0.0.1:8321/json | grep -o 'WARDOS-SELFTEST[^"]*'
+kill $CHROME $SERVER
+```
+
+```
+WARDOS-SELFTEST: PASS 3/3
+```
+
+### Benchmark
+
+```sh
+npm run benchmark    # replays the six-month history through the three baselines and WardOS, prints the table, rewrites src/app/data/benchmark.json
+```
+
+### Command line
+
+The same engine, headless: `node bin/wardos.mjs <command> [args] [--db <path>]`. `--db` defaults to `data/hospital.db`, which git ignores.
+
+```sh
+node bin/wardos.mjs seed              # seed a fresh six-month hospital; prints the census and the demo accounts
+node bin/wardos.mjs beds              # every bed, its ward and rate, and who is in it
+node bin/wardos.mjs report            # census, revenue by charge kind, monthly payroll, outstanding balance
+node bin/wardos.mjs bill 1            # itemized invoice for admission 1 (ids 1–104 in the seed)
+node bin/wardos.mjs bill 84           # an active admission: a live preview as of the demo's fixed clock
+node bin/wardos.mjs verify            # replay the event log and compare it with the database; exit 1 on any mismatch
+node bin/wardos.mjs export            # rewrite src/app/data/summary.json from the database
+node bin/wardos.mjs snapshot          # re-seed and rewrite public/demo.db, the snapshot the site boots from (ignores --db)
+node bin/wardos.mjs seed --db data/second.db     # every command takes --db <path>
+node bin/wardos.mjs                   # no command: prints the usage and exits 2
+```
+
+`verify` on a fresh seed prints:
+
+```
+PASS: replay of 1313 events matches the live database exactly.
+```
+
+Exit codes: `0` success; `1` a runtime error (a missing database, an unknown admission id) or a `verify` mismatch; `2` a missing or unknown command.
+
+Seeding is deterministic: two seeds in separate processes produce byte-identical databases, and a test pins the SHA-256 of the committed snapshot to a fresh seed's.
+
+**Commands that rewrite committed files.** `npm test` and `npm run build` rewrite `docs/`; `npm run benchmark` rewrites `src/app/data/benchmark.json`; `wardos export` rewrites `src/app/data/summary.json`; `wardos snapshot` rewrites `public/demo.db`; `npm ci` recopies `public/sql-wasm.wasm`. Everything is deterministic, so on an unchanged tree each one reproduces the committed bytes. The one to watch is `export`: it reads whichever database `--db` points at, so export from a fresh seed, or the published figures change with it.
 
 ## Architecture
 
@@ -180,10 +246,11 @@ One engine, three surfaces. The browser app, the CLI, and the test suite all dri
 
 ```
 wardos/
+├── .github/      workflows/tests.yml — CI: type-check, tests and build on Node 20 and 22
 ├── bin/          wardos.mjs — CLI entry
-├── docs/         committed production build — the GitHub Pages site
-├── public/       demo.db snapshot, sql-wasm.wasm
-├── scripts/      copy-wasm, run-benchmark
+├── docs/         committed production build — the GitHub Pages site (plus ARCHITECTURE.md, DESIGN_CARD.md, shots/)
+├── public/       demo.db snapshot, sql-wasm.wasm, favicon, og-image.png, sitemap.xml — copied into docs/ by the build
+├── scripts/      copy-wasm (postinstall), run-benchmark
 ├── src/
 │   ├── core/     pure domain: engine, billing, payroll, permissions, replay, money, clock, events
 │   ├── db/       schema.sql, sql.js adapter, transactions
@@ -192,7 +259,8 @@ wardos/
 │   ├── bench/    benchmark harness and truth oracle
 │   ├── cli/      the CLI over the engine
 │   └── app/      React SPA — renders engine state, issues engine commands
-└── tests/        19 files, 318 tests
+├── tests/        20 files, 339 tests
+└── index.html    the page template: SEO tags, theme boot, the static first paint
 ```
 
 Details in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md). Invariants, threat model, and what the system does *not* claim: [docs/DESIGN_CARD.md](docs/DESIGN_CARD.md).
