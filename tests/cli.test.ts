@@ -1,5 +1,6 @@
 import { execFileSync } from 'node:child_process'
-import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { describe, it, expect, beforeAll, afterAll } from 'vitest'
@@ -8,21 +9,28 @@ import { Db } from '../src/db/database'
 /**
  * Exercises the CLI as an external process — `node bin/wardos.mjs …` — the
  * same way a real user (or `npm run` script) would invoke it, rather than
- * importing src/cli/main.ts's internals directly. `--db` always points into
- * a scratch directory under `.superpowers/tmp/` (already git-ignored via
- * the blanket `.superpowers/` rule in .gitignore), never at the real
- * `data/hospital.db`.
+ * importing src/cli/main.ts's internals directly. Every command passes
+ * `--db` pointing into a fresh directory under the OS temp dir, removed
+ * afterwards — never the CLI's default, the real `data/hospital.db`, and
+ * the last test checks that file was left exactly as it was.
  *
- * Seeding takes ~10-15s (it's a real six-month simulation through the real
- * Engine — see src/seed/seed.ts), so it runs exactly once in `beforeAll`
- * and every other test reuses that one seeded db file. `beforeAll` and the
- * one test that re-tampers the db both get a generous timeout to absorb
- * that.
+ * Seeding is a real six-month simulation through the real Engine (see
+ * src/seed/seed.ts), so it runs exactly once in `beforeAll` and every
+ * other test reuses that one seeded db file; `beforeAll` gets a generous
+ * timeout for slow machines.
  */
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), '..')
-const tmpDir = join(repoRoot, '.superpowers', 'tmp', 'cli-test')
-const dbPath = join(tmpDir, 'hospital.db')
+const realDbPath = join(repoRoot, 'data', 'hospital.db')
+let tmpDir = ''
+let dbPath = ''
+
+/** Existence, size and modification time of the real data/hospital.db. */
+function realDbState(): string {
+  if (!existsSync(realDbPath)) return 'absent'
+  const st = statSync(realDbPath)
+  return `${st.size}:${st.mtimeMs}`
+}
 
 function run(...args: string[]): string {
   return execFileSync('node', ['bin/wardos.mjs', ...args], { cwd: repoRoot, encoding: 'utf8' })
@@ -40,10 +48,12 @@ function runExpectFailure(...args: string[]): { status: number; stdout: string }
 
 describe('wardos CLI', () => {
   let seedOutput = ''
+  let realDbBefore = ''
 
   beforeAll(() => {
-    rmSync(tmpDir, { recursive: true, force: true })
-    mkdirSync(tmpDir, { recursive: true })
+    realDbBefore = realDbState()
+    tmpDir = mkdtempSync(join(tmpdir(), 'wardos-cli-test-'))
+    dbPath = join(tmpDir, 'hospital.db')
     seedOutput = run('seed', '--db', dbPath)
   }, 120_000)
 
@@ -98,5 +108,9 @@ describe('wardos CLI', () => {
     expect(stdout).toContain('FAIL')
     expect(stdout).toContain('admissions[1]')
     expect(stdout).toContain('depositPaise')
+  })
+
+  it('never touches the real data/hospital.db (every command above ran against the temp --db)', () => {
+    expect(realDbState()).toBe(realDbBefore)
   })
 })
