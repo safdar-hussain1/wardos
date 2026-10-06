@@ -1,0 +1,294 @@
+/* ==========================================================================
+   WardOS: "Wayfinding"
+
+   The look of a hospital's own signage system. Navy directory panels with
+   white lettering, a linen ground, and one colour per ward (General blue,
+   Twin teal, Private violet, ICU coral), the way hospitals paint coloured
+   lines on the floor to lead people to each ward. Type is Atkinson
+   Hyperlegible, a face drawn for low-vision readers, so it reads like a
+   sign. The ward colours carry meaning everywhere they appear (plan, bed
+   plates, charts, bills); nothing else is coloured for decoration.
+
+   Themes: index.html stamps data-theme ("light" = day shift, "dark" = night
+   shift) before first paint, from the stored choice or the OS preference,
+   so the stylesheet only ever keys off the attribute.
+   ========================================================================== */
+
+/* -- self-hosted fonts (SIL OFL, see assets/fonts/OFL.txt; no external origins) */
+
+@font-face {
+  font-family: 'Atkinson Hyperlegible Next';
+  font-style: normal;
+  font-weight: 200 800;
+  font-display: swap;
+  src: url('../assets/fonts/atkinson-hyperlegible-next-latin-wght-normal.woff2') format('woff2-variations');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308,
+    U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+@font-face {
+  font-family: 'Atkinson Hyperlegible Next';
+  font-style: normal;
+  font-weight: 200 800;
+  font-display: swap;
+  src: url('../assets/fonts/atkinson-hyperlegible-next-latin-ext-wght-normal.woff2') format('woff2-variations');
+  /* carries the rupee sign (U+20B9) */
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+1D00-1DBF, U+1E00-1E9F,
+    U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+
+@font-face {
+  font-family: 'Atkinson Hyperlegible Mono';
+  font-style: normal;
+  font-weight: 200 800;
+  font-display: swap;
+  src: url('../assets/fonts/atkinson-hyperlegible-mono-latin-wght-normal.woff2') format('woff2-variations');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308,
+    U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+/* -- tokens: day shift ------------------------------------------------------ */
+
+:root {
+  color-scheme: light;
+
+  --font: 'Atkinson Hyperlegible Next', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --mono: 'Atkinson Hyperlegible Mono', ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+
+  --bg: #eceae4;
+  --bg-deep: #e3e0d8;
+  --paper: #fbfaf7;
+  --paper-2: #f3f1ec;
+  --line: #dad6cd;
+  --line-2: #8e887b;
+  --ink: #14233f;
+  --ink-2: #44506a;
+  --ink-3: #5f6880;
+  --link: #1d58c2;
+
+  /* the directory sign: navy panel, white lettering, signal-yellow actions */
+  --sign: #14233f;
+  --sign-2: #1d3157;
+  --sign-ink: #ffffff;
+  --sign-ink-2: #c3cde0;
+  --sign-line: rgba(255, 255, 255, 0.16);
+  --signal: #f2c230;
+  --signal-hover: #f7cf4f;
+  --signal-ink: #14233f;
+
+  /* status: always paired with a word and an icon, never colour alone */
+  --ok: #1b7445;
+  --ok-wash: #e2f0e7;
+  --warn: #8a5300;
+  --warn-wash: #f6ead3;
+  --bad: #b42318;
+  --bad-wash: #f8e2df;
+
+  /* wards: marks (validated categorical set), deep fills that carry white
+     text at >= 4.5:1, and washes for floor tints */
+  --ward-general: #2f6bd8;
+  --ward-twin: #0f8f7f;
+  --ward-private: #7a55d1;
+  --ward-icu: #e05a47;
+  --ward-general-deep: #2662ce;
+  --ward-twin-deep: #007c6c;
+  --ward-private-deep: #714bc6;
+  --ward-icu-deep: #b73323;
+  --ward-general-wash: color-mix(in srgb, var(--ward-general) 8%, var(--paper));
+  --ward-twin-wash: color-mix(in srgb, var(--ward-twin) 8%, var(--paper));
+  --ward-private-wash: color-mix(in srgb, var(--ward-private) 8%, var(--paper));
+  --ward-icu-wash: color-mix(in srgb, var(--ward-icu) 8%, var(--paper));
+
+  /* the floor plan, drawn like an architect's sheet */
+  --plan-floor: #fdfcfa;
+  --plan-corridor: #f1eee7;
+  --plan-wall: #14233f;
+  --plan-fixture: #b9b2a3;
+  --plan-bed: #ffffff;
+  --plan-bed-line: #a9a294;
+  --plan-pillow: #e9e5dc;
+  --plan-glass: #9fb6d6;
+
+  --radius-s: 6px;
+  --radius-m: 12px;
+  --radius-l: 20px;
+  --shadow-pop: 0 22px 48px -20px rgba(20, 35, 63, 0.38), 0 2px 8px rgba(20, 35, 63, 0.08);
+  --shadow-plan: 0 1px 0 rgba(20, 35, 63, 0.05), 0 30px 60px -36px rgba(20, 35, 63, 0.35);
+
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-in: cubic-bezier(0.55, 0, 1, 0.45);
+
+  --page-max: 1320px;
+  --gutter: clamp(16px, 3.2vw, 40px);
+  --topbar-h: 64px;
+}
+
+/* -- tokens: night shift ----------------------------------------------------- */
+
+[data-theme='dark'] {
+  color-scheme: dark;
+
+  --bg: #0b1424;
+  --bg-deep: #08101e;
+  --paper: #121e36;
+  --paper-2: #182843;
+  --line: #24355a;
+  --line-2: #6f81a6;
+  --ink: #eaf0fa;
+  --ink-2: #b6c2d8;
+  --ink-3: #93a0b9;
+  --link: #93b6ff;
+
+  --sign: #1a2c50;
+  --sign-2: #22385f;
+  --sign-ink: #ffffff;
+  --sign-ink-2: #c3cfe6;
+  --sign-line: rgba(255, 255, 255, 0.14);
+
+  --ok: #5ccb93;
+  --ok-wash: #15352c;
+  --warn: #eaa94c;
+  --warn-wash: #3a2c17;
+  --bad: #ff7f70;
+  --bad-wash: #3d1e22;
+
+  --ward-general: #5b89ec;
+  --ward-twin: #00a593;
+  --ward-private: #9477e4;
+  --ward-icu: #d86752;
+  --ward-general-wash: color-mix(in srgb, var(--ward-general) 13%, var(--plan-floor));
+  --ward-twin-wash: color-mix(in srgb, var(--ward-twin) 13%, var(--plan-floor));
+  --ward-private-wash: color-mix(in srgb, var(--ward-private) 13%, var(--plan-floor));
+  --ward-icu-wash: color-mix(in srgb, var(--ward-icu) 13%, var(--plan-floor));
+
+  /* at night the plan reads like a lit blueprint */
+  --plan-floor: #101b31;
+  --plan-corridor: #0d172b;
+  --plan-wall: #9db0d4;
+  --plan-fixture: #4b5e84;
+  --plan-bed: #1b2a48;
+  --plan-bed-line: #50638b;
+  --plan-pillow: #2b3d63;
+  --plan-glass: #5876a8;
+
+  --shadow-pop: 0 24px 54px -18px rgba(0, 0, 0, 0.7), 0 2px 8px rgba(0, 0, 0, 0.4);
+  --shadow-plan: 0 0 0 1px rgba(157, 176, 212, 0.08), 0 30px 70px -30px rgba(0, 0, 0, 0.8);
+}
+
+/* -- base ---------------------------------------------------------------------- */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--font);
+  font-size: 1rem;
+  line-height: 1.55;
+  font-optical-sizing: auto;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  transition: background-color 240ms var(--ease-out), color 240ms var(--ease-out);
+}
+
+h1,
+h2,
+h3,
+h4 {
+  margin: 0;
+  font-weight: 750;
+  line-height: 1.12;
+  letter-spacing: -0.015em;
+  text-wrap: balance;
+}
+
+p {
+  margin: 0;
+  text-wrap: pretty;
+}
+
+a {
+  color: var(--link);
+  text-underline-offset: 0.18em;
+  text-decoration-thickness: 1px;
+}
+
+a:hover {
+  text-decoration-thickness: 2px;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+  color: inherit;
+}
+
+button {
+  cursor: pointer;
+}
+
+button:disabled {
+  cursor: not-allowed;
+}
+
+code,
+pre,
+kbd {
+  font-family: var(--mono);
+  font-size: 0.92em;
+}
+
+svg {
+  display: block;
+}
+
+:focus-visible {
+  outline: 3px solid var(--link);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+::selection {
+  background: color-mix(in srgb, var(--signal) 55%, transparent);
+  color: var(--ink);
+}
+
+.sr-only {
+  position: absolute !important;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.num {
+  font-variant-numeric: tabular-nums;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 1ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 1ms !important;
+    scroll-behavior: auto !important;
+  }
+}

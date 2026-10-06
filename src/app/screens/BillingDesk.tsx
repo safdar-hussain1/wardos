@@ -1,202 +1,270 @@
 import { useState } from 'react'
-import type { FormEvent } from 'react'
 import type { Engine, Actor } from '../../core/engine'
-import { can } from '../../core/permissions'
-import { addP, rupees } from '../../core/money'
-import { store } from '../store'
+import type { ComputedInvoice } from '../../core/billing'
+import { addP } from '../../core/money'
+import { ANCHOR_ISO } from '../../core/clock'
+import { billingVm, deckVm } from '../viewmodels'
 import { formatINR } from '../format'
-import { billingVm } from '../viewmodels'
-import type { BillingActiveRow, BillingDischargedRow } from '../viewmodels'
+import { WARD_LABELS } from '../labels'
+import Drawer from './Drawer'
+import { ChartPanel, WardPlate } from './BedPanel'
 import InvoiceDetail from './InvoiceDetail'
+import { Icon } from '../icons'
 
-type Selected = { kind: 'active'; row: BillingActiveRow } | { kind: 'discharged'; row: BillingDischargedRow }
+type Tab = 'running' | 'final'
+type Open =
+  | { kind: 'running'; admissionId: number }
+  | { kind: 'final'; admissionId: number }
+  | { kind: 'issued'; invoice: ComputedInvoice; patientName: string; bedLabel: string; ward: string }
+
+function Outcome({ invoice, final }: { invoice: ComputedInvoice; final: boolean }) {
+  if (invoice.isRefund) {
+    return (
+      <span className="outcome outcome--refund">
+        <Icon name="arrow" size={14} className="outcome__icon outcome__icon--back" />
+        {final ? 'Refunded' : 'Refund'} {formatINR(invoice.refundPaise)}
+      </span>
+    )
+  }
+  if (invoice.balancePaise === 0) return <span className="outcome">Settled</span>
+  return (
+    <span className="outcome outcome--due">
+      <Icon name="arrow" size={14} className="outcome__icon" />
+      Owes {formatINR(invoice.balancePaise)}
+    </span>
+  )
+}
 
 export default function BillingDesk({ engine, actor }: { engine: Engine; actor: Actor }) {
-  const [banner, setBanner] = useState<string | null>(null)
-  const [selected, setSelected] = useState<Selected | null>(null)
-  const [depositAmounts, setDepositAmounts] = useState<Record<number, string>>({})
-  const [depositErrors, setDepositErrors] = useState<Record<number, string>>({})
+  const [tab, setTab] = useState<Tab>('running')
+  const [open, setOpen] = useState<Open | null>(null)
 
-  // Nav already hides this link without VIEW_BILLING; guard here too.
-  if (!can(actor.role, 'VIEW_BILLING')) {
-    return <p className="access-denied">Billing desk requires billing access.</p>
-  }
-
-  // Re-read on every render so both sections reflect the live db right
-  // after a deposit is recorded or an admission is discharged elsewhere.
+  // Re-read on every render, so a deposit or a discharge shows at once.
   const vm = billingVm(engine, actor)
+  const totals = deckVm(engine)
+  const beds = engine.beds()
+  const wardOf = (label: string) => beds.find((b) => b.label === label)?.ward ?? 'GENERAL'
 
-  function handleRecordDeposit(evt: FormEvent<HTMLFormElement>, admissionId: number): void {
-    evt.preventDefault()
-    const raw = depositAmounts[admissionId] ?? ''
-    const amountNum = Number(raw)
-    if (raw.trim() === '' || !Number.isFinite(amountNum) || amountNum <= 0) {
-      setDepositErrors((prev) => ({ ...prev, [admissionId]: 'amount must be a positive number of rupees' }))
-      return
-    }
-    let amountPaise: number
-    try {
-      amountPaise = rupees(amountNum)
-    } catch {
-      setDepositErrors((prev) => ({
-        ...prev,
-        [admissionId]: 'amount must be precise to the paise (at most 2 decimal places)',
-      }))
-      return
-    }
-    setDepositErrors((prev) => {
-      const next = { ...prev }
-      delete next[admissionId]
-      return next
-    })
-    setBanner(null)
-    try {
-      store.dispatch((e, a) => e.recordDeposit(a, { admissionId, amountPaise }))
-      setDepositAmounts((prev) => ({ ...prev, [admissionId]: '' }))
-    } catch (err) {
-      setBanner(err instanceof Error ? err.message : String(err))
-    }
-  }
+  const openRow = open && open.kind !== 'issued' ? open : null
+  const runningRow = openRow?.kind === 'running' ? vm.active.find((r) => r.admissionId === openRow.admissionId) : undefined
+  const finalRow = openRow?.kind === 'final' ? vm.discharged.find((r) => r.admissionId === openRow.admissionId) : undefined
 
   return (
-    <section className="billing-desk">
-      {banner !== null && (
-        <p className="error-banner" role="alert">
-          {banner}
-          <button type="button" onClick={() => setBanner(null)}>
-            Dismiss
-          </button>
+    <section className="page" aria-labelledby="bills-title">
+      <header className="page-head">
+        <h1 id="bills-title">Bills</h1>
+        <p>
+          Every stay is billed in whole paise: the nights in a bed times its nightly rate, plus any extras, minus
+          the deposit. A bill runs while the patient is in, and becomes final when they leave.
         </p>
+      </header>
+
+      <p className="page-summary">
+        <strong>{vm.active.length}</strong> patients are in beds now, with bills still running.{' '}
+        <strong>{vm.discharged.length}</strong> have gone home: {formatINR(totals.outstandingPaise)} is still owed on
+        their final bills, and {totals.refundCount} got money back.
+      </p>
+
+      <div className="tabs" role="tablist" aria-label="Which bills">
+        <button
+          type="button"
+          role="tab"
+          id="tab-running"
+          aria-selected={tab === 'running'}
+          aria-controls="panel-bills"
+          className={tab === 'running' ? 'is-on' : ''}
+          onClick={() => setTab('running')}
+        >
+          Running <span className="tabs__count">{vm.active.length}</span>
+        </button>
+        <button
+          type="button"
+          role="tab"
+          id="tab-final"
+          aria-selected={tab === 'final'}
+          aria-controls="panel-bills"
+          className={tab === 'final' ? 'is-on' : ''}
+          onClick={() => setTab('final')}
+        >
+          Final <span className="tabs__count">{vm.discharged.length}</span>
+        </button>
+      </div>
+
+      <div id="panel-bills" role="tabpanel" aria-labelledby={tab === 'running' ? 'tab-running' : 'tab-final'}>
+        {tab === 'running' ? (
+          vm.active.length === 0 ? (
+            <p className="empty">Nobody is in a bed. Admit someone from the Hospital view and their bill starts here.</p>
+          ) : (
+            <div className="table-wrap">
+              <table className="ledger">
+                <thead>
+                  <tr>
+                    <th scope="col">Patient</th>
+                    <th scope="col">Bed</th>
+                    <th scope="col" className="ledger__num">
+                      Nights
+                    </th>
+                    <th scope="col" className="ledger__num">
+                      So far
+                    </th>
+                    <th scope="col" className="ledger__num">
+                      Deposit
+                    </th>
+                    <th scope="col" className="ledger__num">
+                      If they left now
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {vm.active.map((row) => (
+                    <tr key={row.admissionId} onClick={() => setOpen({ kind: 'running', admissionId: row.admissionId })}>
+                      <td>
+                        <button
+                          type="button"
+                          className="ledger__who"
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            setOpen({ kind: 'running', admissionId: row.admissionId })
+                          }}
+                        >
+                          <strong>{row.patientName}</strong>
+                          <span>{row.mrn}</span>
+                        </button>
+                      </td>
+                      <td>
+                        <WardPlate ward={wardOf(row.bedLabel)} label={row.bedLabel} />
+                      </td>
+                      <td className="ledger__num num">{row.preview.nights}</td>
+                      <td className="ledger__num num">
+                        {formatINR(addP(row.preview.roomTotalPaise, row.preview.extrasTotalPaise))}
+                      </td>
+                      <td className="ledger__num num">{formatINR(row.preview.depositPaise)}</td>
+                      <td className="ledger__num">
+                        <Outcome invoice={row.preview} final={false} />
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )
+        ) : vm.discharged.length === 0 ? (
+          <p className="empty">No one has been discharged yet.</p>
+        ) : (
+          <div className="table-wrap">
+            <table className="ledger">
+              <thead>
+                <tr>
+                  <th scope="col">Patient</th>
+                  <th scope="col">Bed</th>
+                  <th scope="col" className="ledger__num">
+                    Nights
+                  </th>
+                  <th scope="col" className="ledger__num">
+                    Total
+                  </th>
+                  <th scope="col" className="ledger__num">
+                    Deposit
+                  </th>
+                  <th scope="col" className="ledger__num">
+                    Result
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {[...vm.discharged].reverse().map((row) => (
+                  <tr key={row.admissionId} onClick={() => setOpen({ kind: 'final', admissionId: row.admissionId })}>
+                    <td>
+                      <button
+                        type="button"
+                        className="ledger__who"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          setOpen({ kind: 'final', admissionId: row.admissionId })
+                        }}
+                      >
+                        <strong>{row.patientName}</strong>
+                        <span>{row.mrn}</span>
+                      </button>
+                    </td>
+                    <td>
+                      <WardPlate ward={wardOf(row.bedLabel)} label={row.bedLabel} />
+                    </td>
+                    <td className="ledger__num num">{row.invoice.nights}</td>
+                    <td className="ledger__num num">
+                      {formatINR(addP(row.invoice.roomTotalPaise, row.invoice.extrasTotalPaise))}
+                    </td>
+                    <td className="ledger__num num">{formatINR(row.invoice.depositPaise)}</td>
+                    <td className="ledger__num">
+                      <Outcome invoice={row.invoice} final />
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+
+      {runningRow && (
+        <Drawer
+          kicker={
+            <>
+              <WardPlate ward={wardOf(runningRow.bedLabel)} label={runningRow.bedLabel} />{' '}
+              {WARD_LABELS[wardOf(runningRow.bedLabel)]}
+            </>
+          }
+          title={runningRow.patientName}
+          onClose={() => setOpen(null)}
+        >
+          <ChartPanel
+            engine={engine}
+            actor={actor}
+            admissionId={runningRow.admissionId}
+            anchorIso={ANCHOR_ISO}
+            onMoved={() => undefined}
+            onDischarged={(invoice, patientName) =>
+              setOpen({
+                kind: 'issued',
+                invoice,
+                patientName,
+                bedLabel: runningRow.bedLabel,
+                ward: wardOf(runningRow.bedLabel),
+              })
+            }
+          />
+        </Drawer>
       )}
 
-      <section className="billing-active" aria-label="Active admissions">
-        <h2>Active admissions</h2>
-        {vm.active.length === 0 ? (
-          <p>No active admissions.</p>
-        ) : (
-          <div className="table-scroll">
-          <table className="billing-table">
-            <thead>
-              <tr>
-                <th>Patient</th>
-                <th>Bed</th>
-                <th className="num">Nights</th>
-                <th className="num">Running total</th>
-                <th className="num">Deposit</th>
-                <th className="num">Projected</th>
-                {vm.permittedActions.recordDeposit && <th>Record deposit</th>}
-              </tr>
-            </thead>
-            <tbody>
-              {vm.active.map((row) => (
-                <tr key={row.admissionId}>
-                  <td>
-                    <button
-                      type="button"
-                      className="link-button"
-                      onClick={() => setSelected({ kind: 'active', row })}
-                    >
-                      {row.patientName} · {row.mrn}
-                    </button>
-                  </td>
-                  <td className="cell-bed">{row.bedLabel}</td>
-                  <td className="num">{row.preview.nights}</td>
-                  <td className="num">{formatINR(addP(row.preview.roomTotalPaise, row.preview.extrasTotalPaise))}</td>
-                  <td className="num">{formatINR(row.preview.depositPaise)}</td>
-                  <td className={`num ${row.preview.isRefund ? 'refund-due' : 'balance-due'}`}>
-                    {row.preview.isRefund
-                      ? `Refund ${formatINR(row.preview.refundPaise)}`
-                      : `Balance ${formatINR(row.preview.balancePaise)}`}
-                  </td>
-                  {vm.permittedActions.recordDeposit && (
-                    <td>
-                      <form
-                        className="inline-deposit-form"
-                        onSubmit={(evt) => handleRecordDeposit(evt, row.admissionId)}
-                      >
-                        <input
-                          inputMode="decimal"
-                          placeholder="₹ amount"
-                          value={depositAmounts[row.admissionId] ?? ''}
-                          onChange={(e) =>
-                            setDepositAmounts((prev) => ({ ...prev, [row.admissionId]: e.target.value }))
-                          }
-                        />
-                        <button type="submit">Record</button>
-                      </form>
-                      {depositErrors[row.admissionId] !== undefined && (
-                        <p className="field-errors">{depositErrors[row.admissionId]}</p>
-                      )}
-                    </td>
-                  )}
-                </tr>
-              ))}
-            </tbody>
-          </table>
-          </div>
-        )}
-      </section>
+      {finalRow && (
+        <Drawer
+          kicker={
+            <>
+              <WardPlate ward={wardOf(finalRow.bedLabel)} label={finalRow.bedLabel} /> {finalRow.mrn}
+            </>
+          }
+          title={`Bill for ${finalRow.patientName}`}
+          onClose={() => setOpen(null)}
+        >
+          <InvoiceDetail invoice={finalRow.invoice} issuedAt={finalRow.invoice.issuedAt} final />
+        </Drawer>
+      )}
 
-      <section className="billing-discharged" aria-label="Discharged invoices">
-        <h2>Discharged invoices</h2>
-        {vm.discharged.length === 0 ? (
-          <p>No discharged invoices yet.</p>
-        ) : (
-          <div className="table-scroll">
-          <table className="billing-table">
-            <thead>
-              <tr>
-                <th>Patient</th>
-                <th>Bed</th>
-                <th className="num">Balance</th>
-                <th>Status</th>
-              </tr>
-            </thead>
-            <tbody>
-              {vm.discharged.map((row) => (
-                <tr key={row.admissionId}>
-                  <td>
-                    <button
-                      type="button"
-                      className="link-button"
-                      onClick={() => setSelected({ kind: 'discharged', row })}
-                    >
-                      {row.patientName} · {row.mrn}
-                    </button>
-                  </td>
-                  <td className="cell-bed">{row.bedLabel}</td>
-                  <td className={`num ${row.invoice.isRefund ? 'refund-due' : 'balance-due'}`}>
-                    {row.invoice.isRefund ? `Refund ${formatINR(row.invoice.refundPaise)}` : formatINR(row.invoice.balancePaise)}
-                  </td>
-                  <td>
-                    <span className="frozen-badge">Frozen</span>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-          </div>
-        )}
-      </section>
-
-      {selected && (
-        <div className="modal-backdrop" role="dialog" aria-modal="true" aria-label="Invoice detail">
-          <div className="modal">
-            <header className="modal-header">
-              <h2>
-                {selected.row.patientName} · {selected.row.mrn}
-              </h2>
-              <button type="button" onClick={() => setSelected(null)} aria-label="Close">
-                ×
-              </button>
-            </header>
-            {selected.kind === 'active' ? (
-              <InvoiceDetail invoice={selected.row.preview} />
-            ) : (
-              <InvoiceDetail invoice={selected.row.invoice} issuedAt={selected.row.invoice.issuedAt} frozen />
-            )}
-          </div>
-        </div>
+      {open?.kind === 'issued' && (
+        <Drawer
+          kicker={
+            <>
+              <WardPlate ward={open.ward} label={open.bedLabel} /> Discharged
+            </>
+          }
+          title={`Bill for ${open.patientName}`}
+          onClose={() => setOpen(null)}
+        >
+          <p className="notice notice--ok" role="status">
+            <Icon name="check" size={18} /> Discharged. This bill is final and {open.bedLabel} is free again.
+          </p>
+          <InvoiceDetail invoice={open.invoice} issuedAt={ANCHOR_ISO} final />
+        </Drawer>
       )}
     </section>
   )

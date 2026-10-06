@@ -5,31 +5,36 @@
 
 A hospital's whole operating picture — every bed, every bill, every shift — running entirely in your browser. Beds, admissions, billing, payroll, ambulance dispatch, role-based access, and a complete audit history, backed by a real SQLite database (WASM) that lives on your device. The published site is not a demo of the product; it **is** the product, seeded with a deterministic six-month hospital so you can use every feature within seconds of the page loading.
 
-**Live:** https://safdar-hussain1.github.io/wardos/ — pick a demo account on the login screen, or jump straight in as the [administrator](https://safdar-hussain1.github.io/wardos/?as=admin).
+**Live:** https://safdar-hussain1.github.io/wardos/ — it opens on the hospital's floor plan, on shift as the administrator. Click a free bed to admit someone, press **Replay six months** to watch the history play back on the plan, or switch role from the menu at the top right.
 
 <p align="center">
-  <img src="docs/shots/deck-light.png" width="49%" alt="WardOS command deck, light theme — census, occupancy by ward, revenue mix, recent activity" />
-  <img src="docs/shots/deck-dark.png" width="49%" alt="WardOS command deck, dark theme — the same live figures" />
+  <img src="docs/shots/hospital-light.png" width="49%" alt="The WardOS hospital view in the day theme: a navy directory sign listing the four wards beside a live floor plan of 32 beds, with the six-month time machine below" />
+  <img src="docs/shots/hospital-dark.png" width="49%" alt="The same view in the night theme, the floor plan drawn like a lit blueprint" />
+</p>
+<p align="center">
+  <img src="docs/shots/replay-light.png" width="49%" alt="The time machine rewound to 11 June 2026: the floor plan replayed from the event log, seven beds in use" />
+  <img src="docs/shots/how-it-works-light.png" width="49%" alt="How it works: a nurse's discharge refused by the engine and a second patient in a taken bed refused by SQLite, each with the real error" />
 </p>
 
-**343 tests · zero server · every byte stays on your device**
+**366 tests. No server. Every byte stays on your device.**
 
 ## What's in it
 
-| Screen | What it does |
+| View | What it does |
 |---|---|
-| **Command deck** | The live operating picture: census, occupancy by ward, revenue mix, latest events |
-| **Ward board** | All 32 beds as a live grid — click a bed to admit, view, transfer, or discharge |
-| **Billing desk** | Itemized invoices that recompute as charges land; the refund case stated as one, never a negative charge |
-| **Payroll** | Five staff types, each with its own pay rule — click a person and watch their rule compute their pay |
-| **Ambulances** | A fleet of four; dispatch and return, one open dispatch per vehicle, transport charges attach to admissions |
-| **Audit trail** | The append-only event log, human-readable — every command, actor, and instant |
-| **Time machine** | Scrub the hospital through six months of history; every scrubber position is a full replay of the event log up to that instant |
-| **Roles** | Five roles behind real logins (bcrypt-hashed passwords); permissions enforced in the command layer, not the interface |
+| **Hospital** | A live floor plan of the whole hospital: 32 beds in four colour-coded wards, the nurses' station, reception and the ambulance bay. Click a free bed to admit someone, a taken bed to open the chart and its running bill, then add charges, take a deposit, move beds or discharge |
+| **Time machine** | Under the plan: beds in use every morning for six months. Drag along the chart, or press Replay, and the plan is replayed from the event log for that day — every position is a full replay |
+| **How it works** | Three rules to try to break on the live database: discharge a patient as the nurse (the engine refuses), put a second patient in a taken bed with raw SQL (SQLite refuses), and replay the whole log against the live tables (identical) |
+| **Bills** | Running bills that recompute as charges land, and final bills frozen at discharge; an over-paid deposit is a refund, never a negative charge |
+| **Ambulances** | A fleet of four; send one to a call and mark it back, one open call per vehicle |
+| **Staff** | Five staff types, each with its own pay rule, broken down line by line |
+| **Event log** | The append-only log as plain sentences, with the stored record behind each line |
+| **Measurements** | The five claims, the benchmark against three naive baselines, and the seeded hospital's figures |
+| **Roles** | Five roles behind real logins (bcrypt-hashed passwords), one click apart in the role menu; permissions enforced in the command layer, not the interface |
 
 ## Results from the running system
 
-Every figure below is exported from the seeded database by `wardos export` and committed as JSON (`src/app/data/summary.json`). The site's Results screen renders the same file — one source, no drift.
+Every figure below is exported from the seeded database by `wardos export` and committed as JSON (`src/app/data/summary.json`). The site's Measurements view renders the same file — one source, no drift.
 
 **Census** — 60 patients, 17 active admissions, 15 of 32 beds free.
 
@@ -124,11 +129,11 @@ Every headline claim has a test that fails when the enforcement is deliberately 
 git clone https://github.com/safdar-hussain1/wardos
 cd wardos
 npm ci         # needs Node 20.19+ or 22.12+ (CI tests 22 and 24); postinstall copies sql-wasm.wasm into public/
-npm test       # 343 tests in 20 files
+npm test       # 366 tests in 21 files
 npm run dev    # the app with hot reload; Vite prints the local URL
 ```
 
-**Demo accounts** (shown as clickable cards on the login screen):
+**Demo accounts** (each is one click in the role menu at the top right; the sign-in form takes them too):
 
 | Username | Password | Role |
 |---|---|---|
@@ -151,22 +156,23 @@ npm run build                                 # type-check (tsc -b), then build 
 python3 -m http.server 8320 --directory docs  # serve the built site, then open http://localhost:8320/
 ```
 
-The built site needs a web server. It is an ES-module app that fetches `sql-wasm.wasm` and `demo.db` when it starts, and browsers block both on a `file://` page — opened straight from disk it stays on "Booting WardOS…".
+The built site needs a web server. It is an ES-module app that fetches `sql-wasm.wasm` and `demo.db` when it starts, and browsers block both on a `file://` page — opened straight from disk it stays on "Opening the hospital database…".
 
 URL options, on the dev server or the built site:
 
 | Option | Valid values | What it does |
 |---|---|---|
-| `?as=<who>` | a role — `admin`, `reception`, `doctor`, `nurse`, `billing` (any case) — or a demo username such as `dr.rao` | logs straight in as that demo account |
-| `?screen=<key>` | `deck`, `wards` (or `ward`), `billing`, `payroll`, `ambulances`, `audit`, `time-machine`, `about` | opens that screen for the first session; use it with `?as=` |
+| `?as=<who>` | a role — `admin`, `reception`, `doctor`, `nurse`, `billing` (any case) — or a demo username such as `dr.rao` | opens the demo on shift as that account (without it, the administrator) |
+| `#<view>` | `hospital`, `bills`, `ambulances`, `staff`, `event-log`, `measurements`, or `how-it-works` | opens that view; the back button and shared links work |
+| `?screen=<key>` | any view name above, or an older name: `deck`, `wards`, `time-machine` (the hospital view), `billing`, `payroll`, `audit`, `about` | opens that view on first load |
 | `?selftest=1` | — | runs three engine checks in the page (golden invoice, C1 constraint probe, replay spot-check) and writes `WARDOS-SELFTEST: PASS 3/3`, or the first failure, into the tab title |
 
-For example `http://localhost:8320/?as=billing&screen=billing`. Payroll and the audit trail are administrator-only screens, so pair them with `?as=admin`.
+For example `http://localhost:8320/?as=billing#bills`. Staff and the event log are administrator-only views; any other role sees a locked page with a one-click switch to a role that may open it.
 
 ### Tests and checks
 
 ```sh
-npm test                                        # the full suite: 343 tests in 20 files
+npm test                                        # the full suite: 366 tests in 21 files
 npx vitest run tests/billing.test.ts            # one file
 npx tsc -b && npx tsc -p tsconfig.bench.json    # type-check the app and the benchmark, as CI does
 ```
@@ -259,7 +265,7 @@ wardos/
 │   ├── bench/    benchmark harness and truth oracle
 │   ├── cli/      the CLI over the engine
 │   └── app/      React SPA — renders engine state, issues engine commands
-├── tests/        20 files, 343 tests
+├── tests/        21 files, 366 tests
 └── index.html    the page template: SEO tags, theme boot, the static first paint
 ```
 
@@ -287,7 +293,7 @@ Every figure in this README was reproduced with these versions (the lockfile pin
 - **Not a server product.** Single facility, single device, demo-seeded. Nothing you do here leaves your device — there is no server behind the site after the page loads, and the production bundle is scanned by a test for any absolute-origin network call.
 - **Not live time.** The clock is frozen at a fixed anchor instant; every published figure is dated, not drifting against a calendar. That freeze is what makes the seed, the benchmark, and every number above reproducible to the byte.
 - **Not networked auth.** Accounts and roles are real in structure — hashed passwords, per-command permission checks — but they protect the integrity of this local demo's data, not a networked deployment.
-- **Not durable storage.** The browser database lives in IndexedDB, which the browser may evict under storage pressure. "Reset demo" always restores a clean seeded hospital, so nothing is ever unrecoverable.
+- **Not durable storage.** The browser database lives in IndexedDB, which the browser may evict under storage pressure. "Reset the demo" (in the role menu) always restores a clean seeded hospital, so nothing is ever unrecoverable.
 - **Not a medical device.** It manages beds, bills, payroll, and dispatch — not diagnoses or treatment.
 - **Not per-segment billing.** A patient moved between beds is billed at the rate of the last bed for the whole stay, because discharge reads the admission's current bed. In the seeded history, 32 of the 87 invoices come from stays that used a bed with a different rate — admission 1, for one, started in a ₹5,000 private room and is billed all 4 nights at the ₹2,800 twin-sharing rate. It is a known simplification; the fix is to bill each segment of a stay at its own bed's rate.
 - **Not a tamper-proof log.** `verify` proves the tables match the event log, not that the log itself is genuine. Anyone holding the database file can drop the append-only trigger and edit an event together with its row, or change a bed's rate, and `verify` still passes. The fix is a hash chain over the events with a signed head.

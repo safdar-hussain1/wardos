@@ -9,6 +9,8 @@ import { payBreakdown, payrollTotal } from '../core/staff'
 import type { EventRow, EventAction } from '../core/events'
 import type { BedRow } from '../core/replay'
 import { replay } from '../core/replay'
+import { formatINR } from '../core/money'
+import { DIAGNOSES, FAMILY_NAMES, FEMALE_GIVEN_NAMES, MALE_GIVEN_NAMES } from '../seed/names'
 
 /**
  * The hospital's four wards, in the fixed display order the ward board
@@ -406,6 +408,8 @@ export interface TimeMachineBed {
   label: string
   ward: string
   occupied: boolean
+  /** Who was in the bed at that instant, from the PATIENT_REGISTERED event; absent for a free bed. */
+  patientName?: string
 }
 
 export interface TimeMachineVm {
@@ -421,6 +425,8 @@ export interface TimeMachineVm {
   refundsToDate: number
   /** Miniature ward-board data: every bed, occupied? as of `uptoIso`. */
   beds: TimeMachineBed[]
+  /** Ambulances out on a call at `uptoIso` (dispatched and not yet returned), with where they went. */
+  ambulancesOut: { ambulanceId: number; location: string }[]
 }
 
 /**
@@ -443,6 +449,7 @@ export function timeMachineVm(events: EventRow[], beds: BedRow[], uptoIso: strin
 
   const activeAdmissions = [...snapshot.admissions.values()].filter((a) => a.status === 'ACTIVE')
   const occupiedBedIds = new Set(activeAdmissions.map((a) => a.bedId))
+  const occupantByBed = new Map(activeAdmissions.map((a) => [a.bedId, snapshot.patients.get(a.patientId)?.name]))
 
   const byWard = new Map<string, { bedsTotal: number; occupied: number }>()
   const tmBeds: TimeMachineBed[] = beds.map((bed) => {
@@ -451,7 +458,10 @@ export function timeMachineVm(events: EventRow[], beds: BedRow[], uptoIso: strin
     cur.bedsTotal += 1
     if (occupied) cur.occupied += 1
     byWard.set(bed.ward, cur)
-    return { id: bed.id, label: bed.label, ward: bed.ward, occupied }
+    const patientName = occupied ? occupantByBed.get(bed.id) : undefined
+    return patientName === undefined
+      ? { id: bed.id, label: bed.label, ward: bed.ward, occupied }
+      : { id: bed.id, label: bed.label, ward: bed.ward, occupied, patientName }
   })
   const occupancyByWard: DeckOccupancyRow[] = WARD_ORDER.map((ward) => {
     const v = byWard.get(ward) ?? { bedsTotal: 0, occupied: 0 }
@@ -465,6 +475,10 @@ export function timeMachineVm(events: EventRow[], beds: BedRow[], uptoIso: strin
     if (invoice.balancePaise < 0) refundsToDate += 1
   }
 
+  const ambulancesOut = [...snapshot.dispatches.values()]
+    .filter((d) => d.returnedAt === null)
+    .map((d) => ({ ambulanceId: d.ambulanceId, location: d.location }))
+
   return {
     uptoIso,
     patients: snapshot.patients.size,
@@ -475,5 +489,278 @@ export function timeMachineVm(events: EventRow[], beds: BedRow[], uptoIso: strin
     revenueToDatePaise,
     refundsToDate,
     beds: tmBeds,
+    ambulancesOut,
+  }
+}
+
+// ---------------------------------------------------------------------
+// historyFrames: the time machine's timeline, one replay per morning
+// ---------------------------------------------------------------------
+
+const DAY_MS = 86_400_000
+
+export interface HistoryTimeline {
+  /** The first event's instant: where the history starts. */
+  startIso: string
+  /** Whole days from the start to the anchor; the timeline has days + 1 positions. */
+  days: number
+}
+
+/**
+ * The scrub range, derived from the events themselves rather than a
+ * hand-copied constant, so it is always exactly as wide as the history
+ * (including anything the visitor has added since the seed).
+ */
+export function historyTimeline(events: EventRow[], anchorIso: string): HistoryTimeline {
+  const startIso =
+    events.reduce<string | undefined>((min, e) => (min === undefined || e.at < min ? e.at : min), undefined) ??
+    anchorIso
+  const days = Math.max(0, Math.round((Date.parse(anchorIso) - Date.parse(startIso)) / DAY_MS))
+  return { startIso, days }
+}
+
+/** The instant timeline position `index` stands for: the start plus whole days, and the anchor itself at the end. */
+export function historyInstant(timeline: HistoryTimeline, anchorIso: string, index: number): string {
+  if (index >= timeline.days) return anchorIso
+  return new Date(Date.parse(timeline.startIso) + Math.max(0, index) * DAY_MS).toISOString()
+}
+
+export interface HistoryFrame {
+  iso: string
+  /** Beds in use at that instant. */
+  occupied: number
+  beds: TimeMachineBed[]
+  ambulancesOut: { ambulanceId: number; location: string }[]
+}
+
+/**
+ * Every position of the timeline as a full replay of the log up to that
+ * instant (`timeMachineVm`, a pure fold), computed once so scrubbing and
+ * playback only ever look frames up. Like `timeMachineVm`, it never touches
+ * a database: callers fetch `events` and `beds` once and pass them in.
+ */
+export function historyFrames(events: EventRow[], beds: BedRow[], anchorIso: string): HistoryFrame[] {
+  const timeline = historyTimeline(events, anchorIso)
+  const frames: HistoryFrame[] = []
+  for (let day = 0; day <= timeline.days; day++) {
+    const vm = timeMachineVm(events, beds, historyInstant(timeline, anchorIso, day))
+    frames.push({ iso: vm.uptoIso, occupied: vm.activeAdmissions, beds: vm.beds, ambulancesOut: vm.ambulancesOut })
+  }
+  return frames
+}
+
+// ---------------------------------------------------------------------
+// describeEvent: the event log in plain English
+// ---------------------------------------------------------------------
+
+/** The names an event sentence needs; each lookup returns undefined for an id it does not know. */
+export interface EventNames {
+  user(userId: number): { username: string; role: Role } | undefined
+  patient(patientId: number): string | undefined
+  admission(admissionId: number): string | undefined
+  bed(bedId: number): string | undefined
+  ambulance(ambulanceId: number): string | undefined
+  /** The ambulance a dispatch sent (AMBULANCE_RETURNED carries only the dispatch id). */
+  dispatchAmbulance(dispatchId: number): number | undefined
+}
+
+export type EventKind = 'admit' | 'discharge' | 'move' | 'charge' | 'deposit' | 'ambulance' | 'people'
+
+export interface EventSentence {
+  /** Who did it, as a person would say it ("Reception", "Dr Rao"). */
+  who: string
+  /** The rest of the sentence, starting with the verb ("admitted Asha Rao to bed G-08."). */
+  did: string
+  kind: EventKind
+}
+
+/** A demo username as a person would say it: dr.rao is "Dr Rao", nurse.k is "Nurse K", admin is "Admin". */
+export function displayName(username: string): string {
+  const cap = (w: string) => (w.length === 0 ? w : w[0].toUpperCase() + w.slice(1))
+  const doctor = /^dr\.(.+)$/i.exec(username)
+  if (doctor) return `Dr ${cap(doctor[1])}`
+  const nurse = /^nurse\.(.+)$/i.exec(username)
+  if (nurse) return `Nurse ${nurse[1].length === 1 ? nurse[1].toUpperCase() : cap(nurse[1])}`
+  return cap(username)
+}
+
+const KIND_WORDS: Record<ChargeKind, string> = {
+  PROCEDURE: 'procedure',
+  PHARMACY: 'pharmacy',
+  CONSULTATION: 'consultation',
+  TRANSPORT: 'transport',
+}
+
+function readPayload(raw: string): Record<string, unknown> {
+  try {
+    const parsed: unknown = JSON.parse(raw)
+    return parsed !== null && typeof parsed === 'object' ? (parsed as Record<string, unknown>) : {}
+  } catch {
+    return {}
+  }
+}
+
+const asNumber = (v: unknown): number | undefined => (typeof v === 'number' && Number.isFinite(v) ? v : undefined)
+const asString = (v: unknown): string | undefined => (typeof v === 'string' ? v : undefined)
+
+/**
+ * One event as a sentence a visitor can read ("Reception admitted Asha Rao
+ * to bed G-08.") instead of its code ("ADMITTED admission#104"). Pure: all
+ * names come from `names`, and an id it cannot resolve still reads sensibly
+ * ("patient #12").
+ */
+export function describeEvent(event: EventRow, names: EventNames): EventSentence {
+  const p = readPayload(event.payload)
+  const user = event.actorUserId === null ? undefined : names.user(event.actorUserId)
+  // No actor, or the seed's setup actor (id 0, which creates the first logins
+  // before any user exists to act), reads as the system itself.
+  const bySystem = event.actorUserId === null || (user === undefined && event.actorUserId === 0)
+  const who = bySystem ? 'The system' : user ? displayName(user.username) : `User #${event.actorUserId}`
+
+  const patientOf = (id: number | undefined) =>
+    id === undefined ? 'a patient' : (names.patient(id) ?? `patient #${id}`)
+  const admissionOf = (id: number | undefined) =>
+    id === undefined ? 'a patient' : (names.admission(id) ?? `the patient on stay #${id}`)
+  const bedOf = (id: number | undefined) => (id === undefined ? 'a bed' : `bed ${names.bed(id) ?? `#${id}`}`)
+  const ambulanceOf = (id: number | undefined) =>
+    id === undefined ? 'an ambulance' : `ambulance ${names.ambulance(id) ?? `#${id}`}`
+  const money = (v: unknown) => formatINR(asNumber(v) ?? 0)
+
+  switch (event.action) {
+    case 'PATIENT_REGISTERED': {
+      const name = asString(p.name) ?? patientOf(asNumber(p.patientId))
+      const mrn = asString(p.mrn)
+      return { who, did: `registered ${name}${mrn ? ` as ${mrn}` : ''}.`, kind: 'people' }
+    }
+    case 'ADMITTED':
+      return {
+        who,
+        did: `admitted ${patientOf(asNumber(p.patientId))} to ${bedOf(asNumber(p.bedId))}.`,
+        kind: 'admit',
+      }
+    case 'TRANSFERRED':
+      return {
+        who,
+        did: `moved ${admissionOf(asNumber(p.admissionId))} to ${bedOf(asNumber(p.toBedId))}.`,
+        kind: 'move',
+      }
+    case 'CHARGE_ADDED': {
+      const kind = asString(p.kind) as ChargeKind | undefined
+      const what = asString(p.description)
+      const kindWord = kind && KIND_WORDS[kind] ? `${KIND_WORDS[kind]} ` : ''
+      return {
+        who,
+        did: `added a ${kindWord}charge of ${money(p.amountPaise)} for ${admissionOf(asNumber(p.admissionId))}${what ? ` (${what})` : ''}.`,
+        kind: 'charge',
+      }
+    }
+    case 'DEPOSIT_RECORDED':
+      return {
+        who,
+        did: `took a deposit of ${money(p.amountPaise)} from ${admissionOf(asNumber(p.admissionId))}.`,
+        kind: 'deposit',
+      }
+    case 'DISCHARGED': {
+      const invoice = (p.invoice ?? {}) as Record<string, unknown>
+      const balance = asNumber(invoice.balancePaise)
+      const outcome =
+        balance === undefined
+          ? ''
+          : balance > 0
+            ? ` They owe ${formatINR(balance)}.`
+            : balance < 0
+              ? ` They get ${formatINR(-balance)} back.`
+              : ' Nothing is owed either way.'
+      return { who, did: `discharged ${admissionOf(asNumber(p.admissionId))}.${outcome}`, kind: 'discharge' }
+    }
+    case 'AMBULANCE_DISPATCHED': {
+      const where = asString(p.location)
+      return {
+        who,
+        did: `sent ${ambulanceOf(asNumber(p.ambulanceId))}${where ? ` to ${where}` : ''}.`,
+        kind: 'ambulance',
+      }
+    }
+    case 'AMBULANCE_RETURNED': {
+      const dispatchId = asNumber(p.dispatchId)
+      const ambulanceId = dispatchId === undefined ? undefined : names.dispatchAmbulance(dispatchId)
+      return { who, did: `marked ${ambulanceOf(ambulanceId)} back on station.`, kind: 'ambulance' }
+    }
+    case 'USER_CREATED': {
+      const username = asString(p.username)
+      return { who, did: `created the login ${username ?? 'for a new user'}.`, kind: 'people' }
+    }
+    case 'STAFF_ADDED': {
+      const name = asString(p.name)
+      return { who, did: `added ${name ?? 'someone'} to the staff.`, kind: 'people' }
+    }
+    default:
+      return { who, did: `recorded ${String(event.action).toLowerCase().replace(/_/g, ' ')}.`, kind: 'people' }
+  }
+}
+
+/**
+ * The lookups `describeEvent` needs, read once from the engine (plus the
+ * dispatch-to-ambulance pairs the log itself records).
+ */
+export function eventNamesFrom(engine: Engine, events: EventRow[]): EventNames {
+  const users = new Map(engine.users().map((u) => [u.id, { username: u.username, role: u.role }]))
+  const patients = new Map(engine.patients().map((p) => [p.id, p.name]))
+  const admissions = new Map(
+    [...engine.admissionsActive(), ...engine.admissionsDischarged()].map((a) => [a.id, a.patientName]),
+  )
+  const beds = new Map(engine.beds().map((b) => [b.id, b.label]))
+  const ambulances = new Map(engine.ambulances().map((a) => [a.id, a.plate]))
+  const dispatches = new Map<number, number>()
+  for (const e of events) {
+    if (e.action !== 'AMBULANCE_DISPATCHED') continue
+    const p = readPayload(e.payload)
+    const dispatchId = asNumber(p.dispatchId)
+    const ambulanceId = asNumber(p.ambulanceId)
+    if (dispatchId !== undefined && ambulanceId !== undefined) dispatches.set(dispatchId, ambulanceId)
+  }
+  return {
+    user: (id) => users.get(id),
+    patient: (id) => patients.get(id),
+    admission: (id) => admissions.get(id),
+    bed: (id) => beds.get(id),
+    ambulance: (id) => ambulances.get(id),
+    dispatchAmbulance: (id) => dispatches.get(id),
+  }
+}
+
+// ---------------------------------------------------------------------
+// samplePatient: a ready-made new patient for the admit form
+// ---------------------------------------------------------------------
+
+export interface SamplePatient {
+  name: string
+  gender: 'F' | 'M'
+  dobIso: string
+  phone: string
+  idLast4: string
+  diagnosis: string
+}
+
+/**
+ * A plausible new patient, picked deterministically from the seed's own
+ * name and diagnosis pools by `n` (the visitor's next patient number), so
+ * "Fill in a sample patient" gives a different person each time without any
+ * randomness.
+ */
+export function samplePatient(n: number): SamplePatient {
+  const i = Math.abs(Math.trunc(n))
+  const gender: 'F' | 'M' = i % 2 === 0 ? 'F' : 'M'
+  const given = gender === 'F' ? FEMALE_GIVEN_NAMES : MALE_GIVEN_NAMES
+  const year = 1950 + ((i * 13) % 52)
+  const month = 1 + ((i * 5) % 12)
+  const day = 1 + ((i * 11) % 28)
+  return {
+    name: `${given[(i * 7) % given.length]} ${FAMILY_NAMES[(i * 5 + 3) % FAMILY_NAMES.length]}`,
+    gender,
+    dobIso: `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`,
+    phone: `98${String((i * 7919 + 1_234_567) % 100_000_000).padStart(8, '0')}`,
+    idLast4: String(1000 + ((i * 37) % 9000)),
+    diagnosis: DIAGNOSES[(i * 3) % DIAGNOSES.length],
   }
 }

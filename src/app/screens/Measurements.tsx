@@ -1,0 +1,295 @@
+import benchmarkJson from '../data/benchmark.json'
+import summaryJson from '../data/summary.json'
+import { formatINR, formatDateIST } from '../format'
+import { CHARGE_KIND_LABELS, WARD_LABELS, WARD_TOKENS } from '../labels'
+import type { ChargeKind } from '../../core/billing'
+
+interface Benchmark {
+  commands: number
+  n1: { description: string; invoicesWrong: number; worstErrorPaise: number; totalAbsErrorPaise: number }
+  n2: {
+    description: string
+    bedsDrifted: number
+    wrongfulRefusals: number
+    phantomFreeBeds: number
+    phantomFreeAtEnd: number
+    crashesInjected: number
+    crashesOnAdmit: number
+    crashesOnDischarge: number
+  }
+  n3: { description: string; invoicesWrong: number; nightsUnderbilled: number; nightsOverbilled: number; dayCasesFreed: number }
+  wardos: {
+    invoicesWrong: number
+    bedsDrifted: number
+    doubleBookingsAccepted: number
+    invoicesChecked: number
+    bedsChecked: number
+    admissionsTotal: number
+  }
+  generatedAtIso: string
+}
+
+interface Summary {
+  generatedAtIso: string
+  census: { patients: number; active: number; bedsTotal: number; bedsFree: number }
+  occupancyByWard: { ward: string; bedsTotal: number; occupied: number; free: number; ratePaise: number }[]
+  revenueByChargeKind: { kind: string; totalPaise: number }[]
+  payrollByRole: { rows: { role: string; count: number; totalPaise: number }[]; totalPaise: number }
+  outstandingPaise: number
+  refundCount: number
+}
+
+const benchmark = benchmarkJson as Benchmark
+const summary = summaryJson as Summary
+
+const CLAIMS: { claim: string; enforcedBy: string; testedBy: string }[] = [
+  {
+    claim: 'A bed can never be double-booked',
+    enforcedBy: 'A partial unique index on active admissions per bed, in the schema itself, not in application code.',
+    testedBy: 'A raw SQL insert that goes around the engine, onto an occupied bed, must fail with a constraint error.',
+  },
+  {
+    claim: 'The event log is enough: replaying it gives back the exact live state',
+    enforcedBy: 'Every command appends one event in the same transaction as its change, before it commits.',
+    testedBy:
+      'The full six-month log is replayed into a fresh projection and compared with the live database, table by table, id by id, field by field.',
+  },
+  {
+    claim: 'An over-paid deposit becomes a refund, never a negative charge',
+    enforcedBy: 'One balance computation (room plus extras, minus deposit), with the sign read afterwards rather than chosen up front.',
+    testedBy: 'A bill whose deposit exceeds its charges must show a refund equal to deposit minus charges.',
+  },
+  {
+    claim: 'Money is never a floating-point number',
+    enforcedBy: 'Every amount is a whole number of paise from end to end; there is no decimal rupee anywhere in the money path.',
+    testedBy:
+      'Property tests over thousands of operations check for drift, and a deposit, charge or base pay of 1.5, −100 or NaN paise must be rejected before anything is written.',
+  },
+  {
+    claim: 'Permissions are enforced by the engine, not the interface',
+    enforcedBy: 'Every command checks the acting role against a permission table before it touches the database.',
+    testedBy:
+      'A table-driven test calls every command as every role straight against the engine, skipping all screens, and checks access is refused exactly where the table says.',
+  },
+]
+
+const NON_GOALS = [
+  'One hospital on one device: not a multi-site or multi-user system.',
+  'The clock is fixed at 09:00 on 1 August 2026, so every figure is dated, not live.',
+  'Accounts and roles are real in structure (hashed passwords, a permission check on every command) but scoped to this demo. They protect this session’s data, not a networked deployment.',
+  'Storage is the browser’s own database, which the browser may clear under storage pressure. Resetting the demo always brings back a clean hospital.',
+  'Not a medical device or clinical decision support. It manages beds, bills, pay and ambulances, not diagnoses or treatment.',
+]
+
+function Stat({ value, label }: { value: string | number; label: string }) {
+  return (
+    <div className="mstat">
+      <dt>{label}</dt>
+      <dd className="num">{value}</dd>
+    </div>
+  )
+}
+
+/**
+ * Every number behind the front page, read from the two files the build
+ * commits (benchmark.json from `npm run benchmark`, summary.json from
+ * `wardos export`), so this view stays the same whatever a visitor does
+ * elsewhere in the demo.
+ */
+export default function Measurements() {
+  return (
+    <section className="page page--prose" aria-labelledby="m-title">
+      <header className="page-head">
+        <h1 id="m-title">Measurements</h1>
+        <p>
+          What WardOS promises, how each promise is enforced and tested, the benchmark against three common
+          shortcuts, and the seeded hospital’s figures. Every number here comes from files committed with the code,
+          regenerated by the benchmark and export commands in the README.
+        </p>
+      </header>
+
+      <section className="msection" aria-labelledby="m-claims">
+        <h2 id="m-claims">Five promises, each with a test that fails if it breaks</h2>
+        <ol className="claims">
+          {CLAIMS.map((c, i) => (
+            <li key={i} className="claim">
+              <h3>{c.claim}</h3>
+              <dl>
+                <div>
+                  <dt>Enforced by</dt>
+                  <dd>{c.enforcedBy}</dd>
+                </div>
+                <div>
+                  <dt>Tested by</dt>
+                  <dd>{c.testedBy}</dd>
+                </div>
+              </dl>
+            </li>
+          ))}
+        </ol>
+      </section>
+
+      <section className="msection" aria-labelledby="m-bench">
+        <h2 id="m-bench">The benchmark</h2>
+        <p>
+          The same {benchmark.commands.toLocaleString('en-IN')}-command, six-month history that seeds this demo was
+          run through three faithful copies of common ways hospital back offices go wrong, and through WardOS, all
+          checked against one independent calculation.
+        </p>
+
+        <div className="bench">
+          <article className="bench__item">
+            <h3>Float money</h3>
+            <p>{benchmark.n1.description}</p>
+            <dl className="mstats">
+              <Stat label="Bills wrong" value={`${benchmark.n1.invoicesWrong} of ${benchmark.wardos.invoicesChecked}`} />
+              <Stat label="Worst single bill" value={formatINR(benchmark.n1.worstErrorPaise)} />
+              <Stat label="Total misbilled" value={formatINR(benchmark.n1.totalAbsErrorPaise)} />
+            </dl>
+          </article>
+
+          <article className="bench__item">
+            <h3>A hand-kept “occupied” flag</h3>
+            <p>{benchmark.n2.description}</p>
+            <dl className="mstats">
+              <Stat label="Free beds wrongly refused" value={benchmark.n2.wrongfulRefusals} />
+              <Stat label="Full beds shown as free" value={benchmark.n2.phantomFreeBeds} />
+              <Stat label="Still shown free at the end" value={benchmark.n2.phantomFreeAtEnd} />
+              <Stat label="Beds still wrong at the end" value={benchmark.n2.bedsDrifted} />
+              <Stat
+                label="Lost writes injected (admit / discharge)"
+                value={`${benchmark.n2.crashesInjected} (${benchmark.n2.crashesOnAdmit} / ${benchmark.n2.crashesOnDischarge})`}
+              />
+            </dl>
+          </article>
+
+          <article className="bench__item">
+            <h3>Millisecond date maths</h3>
+            <p>{benchmark.n3.description}</p>
+            <dl className="mstats">
+              <Stat label="Bills wrong" value={`${benchmark.n3.invoicesWrong} of ${benchmark.wardos.invoicesChecked}`} />
+              <Stat label="Nights under-billed" value={benchmark.n3.nightsUnderbilled} />
+              <Stat label="Nights over-billed" value={benchmark.n3.nightsOverbilled} />
+              <Stat label="Day cases billed zero nights" value={benchmark.n3.dayCasesFreed} />
+            </dl>
+          </article>
+
+          <article className="bench__item bench__item--wardos">
+            <h3>WardOS, on the identical history</h3>
+            <dl className="mstats">
+              <Stat label="Bills wrong" value={`${benchmark.wardos.invoicesWrong} of ${benchmark.wardos.invoicesChecked}`} />
+              <Stat label="Beds drifted" value={`${benchmark.wardos.bedsDrifted} of ${benchmark.wardos.bedsChecked}`} />
+              <Stat
+                label="Double bookings accepted"
+                value={`${benchmark.wardos.doubleBookingsAccepted} in ${benchmark.wardos.admissionsTotal} admissions`}
+              />
+            </dl>
+          </article>
+        </div>
+      </section>
+
+      <section className="msection" aria-labelledby="m-seed">
+        <h2 id="m-seed">The seeded hospital on {formatDateIST(summary.generatedAtIso)}</h2>
+        <dl className="mstats mstats--row">
+          <Stat label="Patients" value={summary.census.patients} />
+          <Stat label="In a bed" value={summary.census.active} />
+          <Stat label="Beds free" value={`${summary.census.bedsFree} of ${summary.census.bedsTotal}`} />
+          <Stat label="Still owed on final bills" value={formatINR(summary.outstandingPaise)} />
+          <Stat label="Refunds paid" value={summary.refundCount} />
+        </dl>
+
+        <div className="mtables">
+          <div className="table-wrap">
+            <table className="ledger">
+              <caption>Wards</caption>
+              <thead>
+                <tr>
+                  <th scope="col">Ward</th>
+                  <th scope="col" className="ledger__num">
+                    A night
+                  </th>
+                  <th scope="col" className="ledger__num">
+                    In use
+                  </th>
+                  <th scope="col" className="ledger__num">
+                    Beds
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {summary.occupancyByWard.map((w) => (
+                  <tr key={w.ward}>
+                    <th scope="row">
+                      <span className={`dot dot--${WARD_TOKENS[w.ward] ?? 'general'}`} aria-hidden="true" />
+                      {WARD_LABELS[w.ward] ?? w.ward}
+                    </th>
+                    <td className="ledger__num num">{formatINR(w.ratePaise)}</td>
+                    <td className="ledger__num num">{w.occupied}</td>
+                    <td className="ledger__num num">{w.bedsTotal}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          <div className="table-wrap">
+            <table className="ledger">
+              <caption>Charges on final bills</caption>
+              <tbody>
+                {summary.revenueByChargeKind.map((r) => (
+                  <tr key={r.kind}>
+                    <th scope="row">{CHARGE_KIND_LABELS[r.kind as ChargeKind] ?? r.kind}</th>
+                    <td className="ledger__num num">{formatINR(r.totalPaise)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          <div className="table-wrap">
+            <table className="ledger">
+              <caption>Monthly pay by role</caption>
+              <thead>
+                <tr>
+                  <th scope="col">Role</th>
+                  <th scope="col" className="ledger__num">
+                    People
+                  </th>
+                  <th scope="col" className="ledger__num">
+                    Total
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {summary.payrollByRole.rows.map((r) => (
+                  <tr key={r.role}>
+                    <th scope="row">{r.role.charAt(0) + r.role.slice(1).toLowerCase()}</th>
+                    <td className="ledger__num num">{r.count}</td>
+                    <td className="ledger__num num">{formatINR(r.totalPaise)}</td>
+                  </tr>
+                ))}
+              </tbody>
+              <tfoot>
+                <tr>
+                  <th scope="row" colSpan={2}>
+                    Everyone
+                  </th>
+                  <td className="ledger__num num">{formatINR(summary.payrollByRole.totalPaise)}</td>
+                </tr>
+              </tfoot>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <section className="msection" aria-labelledby="m-not">
+        <h2 id="m-not">What this is not</h2>
+        <ul className="nongoals">
+          {NON_GOALS.map((n, i) => (
+            <li key={i}>{n}</li>
+          ))}
+        </ul>
+      </section>
+    </section>
+  )
+}

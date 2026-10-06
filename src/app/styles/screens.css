@@ -1,0 +1,521 @@
+/* ==========================================================================
+   The views behind the navigation: Bills, Ambulances, Staff, Event log,
+   Measurements.
+   ========================================================================== */
+
+.page {
+  display: grid;
+  gap: 18px;
+  align-content: start;
+}
+
+.page-head {
+  max-width: 760px;
+  padding: 12px 0 6px;
+}
+
+.page-head h1 {
+  font-size: clamp(2.2rem, 1.6rem + 2vw, 3.1rem);
+  font-weight: 800;
+  letter-spacing: -0.03em;
+}
+
+.page-head p {
+  margin-top: 10px;
+  color: var(--ink-2);
+  font-size: 1.08rem;
+}
+
+.page-summary {
+  max-width: 80ch;
+  padding: 14px 18px;
+  border-left: 4px solid var(--signal);
+  border-radius: 0 12px 12px 0;
+  background: var(--paper);
+  color: var(--ink-2);
+}
+
+.page-summary strong {
+  color: var(--ink);
+}
+
+.toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.toolbar__count {
+  color: var(--ink-2);
+}
+
+/* -- event log ------------------------------------------------------------------- */
+
+.log {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: var(--paper);
+  overflow: hidden;
+}
+
+.log__item {
+  border-bottom: 1px solid var(--line);
+}
+
+.log__item:last-child {
+  border-bottom: 0;
+}
+
+.log__row {
+  display: grid;
+  grid-template-columns: auto 1fr auto auto auto;
+  align-items: center;
+  gap: 14px;
+  width: 100%;
+  padding: 12px 16px;
+  border: 0;
+  background: none;
+  text-align: left;
+}
+
+.log__row:hover {
+  background: var(--paper-2);
+}
+
+.log__kind {
+  width: 10px;
+  height: 10px;
+  border-radius: 3px;
+  background: var(--ink-3);
+}
+
+.log__kind--admit {
+  background: var(--link);
+}
+
+.log__kind--discharge {
+  background: var(--ok);
+}
+
+.log__kind--move {
+  background: var(--ink-2);
+}
+
+.log__kind--charge,
+.log__kind--deposit {
+  background: var(--warn);
+}
+
+.log__kind--ambulance {
+  background: var(--bad);
+}
+
+.log__text {
+  min-width: 0;
+}
+
+.log__when {
+  color: var(--ink-3);
+  font-size: 0.85rem;
+  white-space: nowrap;
+}
+
+.log__id {
+  color: var(--ink-3);
+  font-size: 0.85rem;
+}
+
+.log__chev {
+  color: var(--ink-3);
+  transform: rotate(-90deg);
+  transition: transform 180ms var(--ease-out);
+}
+
+.log__item.is-open .log__chev {
+  transform: none;
+}
+
+.log__raw {
+  display: grid;
+  gap: 8px;
+  padding: 4px 16px 16px 40px;
+  color: var(--ink-2);
+  font-size: 0.9rem;
+}
+
+.pager {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  color: var(--ink-2);
+}
+
+@media (max-width: 720px) {
+  .log__row {
+    grid-template-columns: auto 1fr auto;
+    gap: 6px 12px;
+  }
+
+  .log__when {
+    grid-column: 2;
+  }
+
+  .log__id {
+    display: none;
+  }
+}
+
+/* -- ambulances ------------------------------------------------------------------- */
+
+.fleet {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+  gap: 16px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.vehicle {
+  display: grid;
+  align-content: start;
+  gap: 12px;
+  padding: 18px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-l);
+  background: var(--paper);
+}
+
+.vehicle--out {
+  border-color: color-mix(in srgb, var(--warn) 45%, var(--line));
+  background: color-mix(in srgb, var(--warn-wash) 60%, var(--paper));
+}
+
+.van {
+  width: 100%;
+  max-width: 220px;
+  height: auto;
+  justify-self: center;
+  transition: transform 400ms var(--ease-out);
+}
+
+.van__body,
+.van__cab {
+  fill: #ffffff;
+  stroke: var(--ink);
+  stroke-width: 2;
+  stroke-linejoin: round;
+}
+
+[data-theme='dark'] .van__body,
+[data-theme='dark'] .van__cab {
+  fill: #e6ecf7;
+  stroke: #e6ecf7;
+}
+
+.van__window {
+  fill: var(--plate-bg);
+}
+
+.van__stripe {
+  fill: var(--ward-general);
+}
+
+.van__cross {
+  fill: #d23a2a;
+}
+
+.van__light {
+  fill: var(--ward-general);
+}
+
+.van--out .van__light {
+  fill: #d23a2a;
+  animation: beacon 900ms steps(2, jump-none) infinite;
+}
+
+@keyframes beacon {
+  50% {
+    fill: var(--ward-general);
+  }
+}
+
+.van__wheel {
+  fill: var(--ink);
+}
+
+[data-theme='dark'] .van__wheel {
+  fill: #0b1424;
+  stroke: #e6ecf7;
+  stroke-width: 2;
+}
+
+.van__hub {
+  fill: var(--line-2);
+}
+
+.vehicle__id {
+  display: grid;
+  justify-items: start;
+  gap: 6px;
+}
+
+/* Indian number plates: white, black lettering, a thin black border */
+.numberplate {
+  padding: 3px 9px;
+  border: 2px solid #111111;
+  border-radius: 5px;
+  background: #ffffff;
+  color: #111111;
+  font-weight: 800;
+  font-size: 0.9rem;
+  letter-spacing: 0.06em;
+  font-variant-numeric: tabular-nums;
+}
+
+.vehicle__model {
+  color: var(--ink-2);
+  font-size: 0.9rem;
+}
+
+.vehicle__status {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  font-weight: 750;
+}
+
+.vehicle__status--out {
+  color: var(--warn);
+}
+
+.vehicle__status--out .status-dot {
+  background: var(--warn);
+}
+
+.vehicle__since {
+  margin-top: -8px;
+  color: var(--ink-2);
+  font-size: 0.875rem;
+}
+
+/* -- staff -------------------------------------------------------------------------- */
+
+.paylines {
+  display: grid;
+  gap: 6px;
+  max-width: 520px;
+  margin: 4px 0 4px 26px;
+}
+
+.paylines div {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.paylines dt {
+  color: var(--ink-2);
+}
+
+.paylines dd {
+  margin: 0;
+  font-weight: 650;
+}
+
+.paylines__total {
+  margin-top: 4px;
+  padding-top: 6px;
+  border-top: 1px solid var(--line-2);
+  font-weight: 750;
+}
+
+.paylines__total dt {
+  color: var(--ink);
+}
+
+/* -- measurements ---------------------------------------------------------------------- */
+
+.page--prose {
+  gap: 10px;
+}
+
+.msection {
+  display: grid;
+  gap: 16px;
+  margin-top: 36px;
+}
+
+.msection > h2 {
+  font-size: clamp(1.6rem, 1.3rem + 1vw, 2.1rem);
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+
+.msection > p {
+  max-width: 78ch;
+  color: var(--ink-2);
+}
+
+.claims {
+  display: grid;
+  gap: 12px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  counter-reset: claim;
+}
+
+.claim {
+  position: relative;
+  padding: 18px 20px 18px 64px;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: var(--paper);
+  counter-increment: claim;
+}
+
+.claim::before {
+  content: counter(claim);
+  position: absolute;
+  left: 18px;
+  top: 16px;
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  background: var(--sign);
+  color: #ffffff;
+  font-weight: 800;
+}
+
+.claim h3 {
+  font-size: 1.15rem;
+}
+
+.claim dl {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px 24px;
+  margin: 10px 0 0;
+}
+
+.claim dt {
+  color: var(--ink-3);
+  font-size: 0.825rem;
+  font-weight: 650;
+}
+
+.claim dd {
+  margin: 2px 0 0;
+  color: var(--ink-2);
+  font-size: 0.95rem;
+}
+
+.bench {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: 14px;
+}
+
+.bench__item {
+  display: grid;
+  align-content: start;
+  gap: 10px;
+  padding: 20px;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: var(--paper);
+}
+
+.bench__item h3 {
+  font-size: 1.15rem;
+}
+
+.bench__item p {
+  color: var(--ink-2);
+  font-size: 0.9rem;
+}
+
+.bench__item--wardos {
+  border-color: color-mix(in srgb, var(--ok) 50%, var(--line));
+  background: color-mix(in srgb, var(--ok) 6%, var(--paper));
+}
+
+.mstats {
+  display: grid;
+  gap: 0;
+  margin: 0;
+}
+
+.mstat {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 7px 0;
+  border-top: 1px solid var(--line);
+}
+
+.mstat dt {
+  color: var(--ink-2);
+  font-size: 0.925rem;
+}
+
+.mstat dd {
+  margin: 0;
+  font-weight: 750;
+  text-align: right;
+}
+
+.mstats--row {
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  gap: 12px;
+}
+
+.mstats--row .mstat {
+  display: grid;
+  gap: 4px;
+  padding: 14px 16px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--paper);
+}
+
+.mstats--row .mstat dd {
+  font-size: 1.35rem;
+  text-align: left;
+}
+
+.mtables {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 14px;
+  align-items: start;
+}
+
+.nongoals {
+  display: grid;
+  gap: 10px;
+  max-width: 80ch;
+  margin: 0;
+  padding-left: 1.2em;
+  color: var(--ink-2);
+}
+
+@media (max-width: 720px) {
+  .claim dl {
+    grid-template-columns: 1fr;
+  }
+
+  .claim {
+    padding-left: 20px;
+    padding-top: 60px;
+  }
+}

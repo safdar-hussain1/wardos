@@ -1,0 +1,1287 @@
+/* ==========================================================================
+   The Hospital view: the directory sign, the floor plan, the time machine,
+   How it works and the one proof figure.
+   ========================================================================== */
+
+:root {
+  --plan-head: #d9c0a6;
+  --plate-bg: #14233f;
+}
+
+[data-theme='dark'] {
+  --plan-head: #c7a689;
+  --plate-bg: #22385f;
+}
+
+/* -- hero ----------------------------------------------------------------------- */
+
+.hero {
+  display: grid;
+  grid-template-columns: minmax(360px, 5fr) minmax(0, 8fr);
+  gap: 20px;
+  align-items: stretch;
+}
+
+@media (max-width: 1180px) {
+  .hero {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* the directory sign */
+.sign {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  padding: clamp(26px, 3vw, 38px);
+  border-radius: var(--radius-l);
+  background: var(--sign);
+  color: var(--sign-ink);
+  overflow: hidden;
+}
+
+.sign::after {
+  /* the four floor lines, running off the sign's edge */
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 18px;
+  background: linear-gradient(
+    to bottom,
+    var(--ward-general) 0 3px,
+    transparent 3px 5px,
+    var(--ward-twin) 5px 8px,
+    transparent 8px 10px,
+    var(--ward-private) 10px 13px,
+    transparent 13px 15px,
+    var(--ward-icu) 15px 18px
+  );
+}
+
+.sign__title {
+  font-size: clamp(2.2rem, 1.3rem + 1.9vw, 2.8rem);
+  font-weight: 800;
+  line-height: 1.04;
+  letter-spacing: -0.032em;
+}
+
+.sign__lead {
+  margin-top: 16px;
+  color: var(--sign-ink-2);
+  font-size: 1.04rem;
+  line-height: 1.55;
+}
+
+.directory {
+  display: grid;
+  margin: auto 0 0;
+  padding-top: 24px;
+  padding: 0;
+  list-style: none;
+}
+
+.directory__row:first-child {
+  border-top: 1px solid var(--sign-line);
+}
+
+.directory__row {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 12px;
+  padding: 9px 0;
+  border-bottom: 1px solid var(--sign-line);
+}
+
+.directory__dot {
+  width: 14px;
+  height: 14px;
+  border-radius: 4px;
+  background: var(--ward-general);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--ward-general) 30%, transparent);
+}
+
+.directory__row--twin .directory__dot {
+  background: var(--ward-twin);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--ward-twin) 30%, transparent);
+}
+
+.directory__row--private .directory__dot {
+  background: var(--ward-private);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--ward-private) 30%, transparent);
+}
+
+.directory__row--icu .directory__dot {
+  background: var(--ward-icu);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--ward-icu) 30%, transparent);
+}
+
+.directory__name {
+  font-weight: 700;
+  font-size: 1.05rem;
+}
+
+.directory__count {
+  font-weight: 800;
+  font-size: 1.05rem;
+}
+
+.directory__of {
+  color: var(--sign-ink-2);
+  font-weight: 500;
+  font-size: 0.925rem;
+}
+
+.sign__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 22px;
+}
+
+.sign__actions .button {
+  min-height: 48px;
+  padding: 0 16px;
+  font-size: 1rem;
+}
+
+.sign__foot {
+  margin-top: 12px;
+  margin-bottom: 16px;
+  color: var(--sign-ink-2);
+  font-size: 0.875rem;
+}
+
+/* the plan card */
+.plan-card {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-l);
+  background: var(--paper);
+  box-shadow: var(--shadow-plan);
+  overflow: hidden;
+}
+
+.plan-card__bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 18px 4px;
+}
+
+.status {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  font-size: 0.95rem;
+  color: var(--ink-2);
+}
+
+.status strong {
+  color: var(--ink);
+}
+
+.status--history {
+  padding: 4px 12px 4px 8px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--signal) 26%, var(--paper));
+  color: var(--ink);
+}
+
+.plan-card__count {
+  color: var(--ink-2);
+  font-size: 0.95rem;
+  white-space: nowrap;
+}
+
+.plan-card__count strong {
+  color: var(--ink);
+  font-size: 1.15rem;
+}
+
+.plan-card__plan {
+  position: relative;
+  padding: 6px 14px 8px;
+  min-height: 200px;
+}
+
+/* -- the floor plan ---------------------------------------------------------------- */
+
+.plan {
+  position: relative;
+}
+
+.plan__svg {
+  width: 100%;
+  height: auto;
+  overflow: visible;
+  font-family: var(--font);
+}
+
+.plan__site {
+  fill: transparent;
+}
+
+.plan__floor {
+  fill: var(--plan-floor);
+}
+
+.plan__zone--general {
+  fill: var(--ward-general-wash);
+}
+
+.plan__zone--twin {
+  fill: var(--ward-twin-wash);
+}
+
+.plan__zone--private {
+  fill: var(--ward-private-wash);
+}
+
+.plan__zone--icu {
+  fill: var(--ward-icu-wash);
+}
+
+.plan__corridor {
+  fill: var(--plan-corridor);
+}
+
+.plan__wall {
+  stroke: var(--plan-wall);
+  stroke-width: 3;
+  stroke-linecap: square;
+}
+
+.plan__wall--outer {
+  stroke-width: 6;
+}
+
+.plan__curtain {
+  stroke: var(--plan-fixture);
+  stroke-width: 1.4;
+  stroke-dasharray: 3 4;
+}
+
+.plan__glass {
+  stroke: var(--plan-glass);
+  stroke-width: 2.5;
+}
+
+.plan__door {
+  fill: none;
+  stroke: var(--plan-fixture);
+  stroke-width: 1.3;
+}
+
+.fixture {
+  fill: var(--plan-corridor);
+  stroke: var(--plan-fixture);
+  stroke-width: 1.5;
+}
+
+.plan__label {
+  font-size: 11.5px;
+  font-weight: 650;
+  fill: var(--ink-3);
+}
+
+.plan__label--note {
+  font-size: 12.5px;
+  font-weight: 700;
+  fill: var(--ink-2);
+}
+
+.plan__hatch {
+  stroke: var(--line);
+  stroke-width: 1.2;
+}
+
+.plan__bay-apron {
+  stroke: var(--line);
+  stroke-width: 1;
+}
+
+/* ward plates */
+.plate__bg {
+  fill: var(--plate-bg);
+}
+
+.plate__text {
+  fill: #ffffff;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.plate__dot {
+  fill: var(--ward-general);
+}
+
+.plate--twin .plate__dot {
+  fill: var(--ward-twin);
+}
+
+.plate--private .plate__dot {
+  fill: var(--ward-private);
+}
+
+.plate--icu .plate__dot {
+  fill: var(--ward-icu);
+}
+
+/* the floor lines paint themselves from reception, once, as the plan arrives */
+.floorline__path {
+  fill: none;
+  stroke: var(--ward-general);
+  stroke-width: 6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-dasharray: 1;
+  animation: paint-line 1300ms var(--ease-out) both;
+  animation-delay: calc(var(--i) * 140ms + 250ms);
+}
+
+.floorline__end {
+  fill: var(--plan-floor);
+  stroke: var(--ward-general);
+  stroke-width: 3;
+  animation: fade-in 300ms var(--ease-out) both;
+  animation-delay: calc(var(--i) * 140ms + 1300ms);
+}
+
+.floorline--twin .floorline__path,
+.floorline--twin .floorline__end {
+  stroke: var(--ward-twin);
+}
+
+.floorline--private .floorline__path,
+.floorline--private .floorline__end {
+  stroke: var(--ward-private);
+}
+
+.floorline--icu .floorline__path,
+.floorline--icu .floorline__end {
+  stroke: var(--ward-icu);
+}
+
+@keyframes paint-line {
+  from {
+    stroke-dashoffset: 1;
+  }
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+/* beds */
+.bed {
+  outline: none;
+}
+
+.plan--live .bed {
+  cursor: pointer;
+}
+
+.bedwrap {
+  animation: bed-in 480ms var(--ease-out) both;
+  animation-delay: calc(var(--i) * 16ms + 200ms);
+}
+
+.bed__lift {
+  transition: transform 180ms var(--ease-out);
+}
+
+@keyframes bed-in {
+  from {
+    opacity: 0;
+  }
+}
+
+.plan--live .bed:hover .bed__lift,
+.plan--live .bed:focus-visible .bed__lift,
+.plan--live .bed:hover + .bed__initials,
+.plan--live .bed:focus-visible + .bed__initials {
+  transform: translateY(-2px);
+}
+
+.bed__frame {
+  fill: var(--plan-bed);
+  stroke: var(--plan-bed-line);
+  stroke-width: 1.2;
+  transition: stroke 160ms var(--ease-out);
+}
+
+.plan--live .bed:hover .bed__frame {
+  stroke: var(--ink-2);
+  stroke-width: 1.6;
+}
+
+.bed__pillow {
+  fill: var(--plan-pillow);
+}
+
+.bed__ring {
+  fill: none;
+  stroke: var(--link);
+  stroke-width: 3;
+  opacity: 0;
+  transition: opacity 140ms var(--ease-out);
+}
+
+.bed:focus-visible .bed__ring {
+  opacity: 1;
+}
+
+.bed--selected .bed__ring {
+  stroke: var(--ink);
+  opacity: 1;
+}
+
+.bed__blanket {
+  fill: var(--ward-general-deep);
+  transform-box: fill-box;
+  transform-origin: 50% 100%;
+  transform: scaleY(0);
+  transition: transform 420ms var(--ease-out);
+}
+
+.bed--head-bottom .bed__blanket {
+  transform-origin: 50% 0%;
+}
+
+.bed--occupied .bed__blanket {
+  transform: scaleY(1);
+}
+
+.bed--twin .bed__blanket {
+  fill: var(--ward-twin-deep);
+}
+
+.bed--private .bed__blanket {
+  fill: var(--ward-private-deep);
+}
+
+.bed--icu .bed__blanket {
+  fill: var(--ward-icu-deep);
+}
+
+[data-theme='dark'] .bed--occupied .bed__frame {
+  stroke: color-mix(in srgb, var(--ward-general) 70%, transparent);
+}
+
+[data-theme='dark'] .bed--twin.bed--occupied .bed__frame {
+  stroke: color-mix(in srgb, var(--ward-twin) 70%, transparent);
+}
+
+[data-theme='dark'] .bed--private.bed--occupied .bed__frame {
+  stroke: color-mix(in srgb, var(--ward-private) 70%, transparent);
+}
+
+[data-theme='dark'] .bed--icu.bed--occupied .bed__frame {
+  stroke: color-mix(in srgb, var(--ward-icu) 70%, transparent);
+}
+
+.bed__head {
+  fill: var(--plan-head);
+  transform-box: fill-box;
+  transform-origin: center;
+  transform: scale(0);
+  transition: transform 300ms var(--ease-out) 120ms;
+}
+
+.bed--occupied .bed__head {
+  transform: scale(1);
+}
+
+.bed__initials {
+  fill: #ffffff;
+  font-size: 12.5px;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  opacity: 0;
+  pointer-events: none;
+  transition:
+    opacity 200ms var(--ease-out),
+    transform 180ms var(--ease-out);
+}
+
+.bed__initials.bed--occupied {
+  opacity: 1;
+  transition-delay: 220ms, 0ms;
+}
+
+.plan--tall .bed__initials {
+  font-size: 11.5px;
+}
+
+.bed__plus {
+  fill: none;
+  stroke: var(--ink-3);
+  stroke-width: 2;
+  stroke-linecap: round;
+  opacity: 0;
+  transition: opacity 140ms var(--ease-out);
+}
+
+.plan--live .bed--free:hover .bed__plus,
+.plan--live .bed--free:focus-visible .bed__plus,
+.plan--live .bed--free.bed--selected .bed__plus {
+  opacity: 1;
+}
+
+.bed__label {
+  font-size: 11px;
+  font-weight: 750;
+  letter-spacing: 0.03em;
+  fill: var(--ink-2);
+}
+
+/* ambulances */
+.amb {
+  outline: none;
+}
+
+.amb[role='button'] {
+  cursor: pointer;
+}
+
+.amb__slot {
+  fill: none;
+  stroke: var(--plan-fixture);
+  stroke-width: 1.2;
+  stroke-dasharray: 3 3;
+}
+
+.amb:focus-visible .amb__slot {
+  stroke: var(--link);
+  stroke-width: 3;
+  stroke-dasharray: none;
+}
+
+.amb__body {
+  fill: #ffffff;
+  stroke: var(--plan-wall);
+  stroke-width: 1.5;
+}
+
+[data-theme='dark'] .amb__body {
+  fill: #dfe7f5;
+  stroke: #dfe7f5;
+}
+
+.amb__cab {
+  fill: var(--plate-bg);
+}
+
+.amb__bar {
+  fill: var(--ward-general);
+}
+
+.amb__cross {
+  fill: #d23a2a;
+}
+
+.amb__ghost {
+  fill: none;
+  stroke: var(--warn);
+  stroke-width: 1.6;
+  stroke-dasharray: 4 3;
+}
+
+.amb__out {
+  fill: var(--warn);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.amb__plate {
+  fill: var(--ink-2);
+  font-size: 11px;
+  font-weight: 650;
+}
+
+.amb__plate--out {
+  fill: var(--warn);
+  font-weight: 750;
+  pointer-events: none;
+}
+
+/* the bed tooltip */
+.bedtip {
+  position: absolute;
+  z-index: 5;
+  min-width: 190px;
+  max-width: 250px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--paper);
+  box-shadow: var(--shadow-pop);
+  transform: translate(-50%, -100%);
+  pointer-events: none;
+  animation: tip-in 140ms var(--ease-out);
+}
+
+.bedtip--below {
+  transform: translate(-50%, 0);
+}
+
+@keyframes tip-in {
+  from {
+    opacity: 0;
+  }
+}
+
+.bedtip__where {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  color: var(--ink-2);
+  font-size: 0.8rem;
+  font-weight: 650;
+}
+
+.bedtip__swatch {
+  width: 9px;
+  height: 9px;
+  border-radius: 3px;
+  background: var(--ward-general);
+}
+
+.bedtip--twin .bedtip__swatch {
+  background: var(--ward-twin);
+}
+
+.bedtip--private .bedtip__swatch {
+  background: var(--ward-private);
+}
+
+.bedtip--icu .bedtip__swatch {
+  background: var(--ward-icu);
+}
+
+.bedtip__who {
+  margin-top: 3px;
+  font-weight: 750;
+  font-size: 1rem;
+}
+
+.bedtip__who--free {
+  color: var(--ok);
+}
+
+.bedtip__meta {
+  color: var(--ink-2);
+  font-size: 0.85rem;
+}
+
+.bedtip__hint {
+  margin-top: 6px;
+  color: var(--ink-3);
+  font-size: 0.8rem;
+}
+
+/* -- the time machine ------------------------------------------------------------------- */
+
+.timeline {
+  padding: 12px 18px 12px;
+  border-top: 1px solid var(--line);
+}
+
+.timeline--loading {
+  color: var(--ink-3);
+  font-size: 0.925rem;
+}
+
+.timeline__bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 4px;
+}
+
+.timeline__play {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 42px;
+  height: 42px;
+  border: 0;
+  border-radius: 50%;
+  background: var(--btn-primary-bg);
+  color: var(--btn-primary-ink);
+  transition: transform 160ms var(--ease-out), background-color 160ms var(--ease-out);
+}
+
+.timeline__play:hover {
+  background: var(--btn-primary-hover);
+  transform: scale(1.05);
+}
+
+.timeline__name {
+  font-weight: 750;
+}
+
+.timeline__help {
+  color: var(--ink-3);
+  font-size: 0.85rem;
+}
+
+.timeline__now {
+  margin-left: auto;
+  min-height: 36px;
+  padding: 0 14px;
+  border: 1px solid var(--line-2);
+  border-radius: 999px;
+  background: var(--paper);
+  font-weight: 650;
+  font-size: 0.9rem;
+}
+
+.timeline__now:hover {
+  background: var(--paper-2);
+}
+
+.timeline__chart {
+  position: relative;
+  border-radius: 10px;
+}
+
+.timeline__chart:has(.timeline__range:focus-visible) {
+  outline: 3px solid var(--link);
+  outline-offset: 2px;
+}
+
+.timeline__chart svg {
+  display: block;
+  overflow: visible;
+}
+
+.timeline__grid {
+  stroke: var(--line);
+  stroke-width: 1;
+}
+
+.timeline__tick {
+  fill: var(--ink-3);
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.timeline__area {
+  fill: color-mix(in srgb, var(--ink) 10%, transparent);
+}
+
+.timeline__line {
+  fill: none;
+  stroke: var(--ink);
+  stroke-width: 2;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+}
+
+.timeline__end {
+  fill: var(--ink);
+  stroke: var(--paper);
+  stroke-width: 2;
+}
+
+.timeline__endlabel {
+  fill: var(--ink);
+  font-size: 12px;
+  font-weight: 750;
+}
+
+.timeline__ghost {
+  stroke: var(--ink-3);
+  stroke-width: 1;
+}
+
+.timeline__head line {
+  stroke: var(--ink);
+  stroke-width: 1.5;
+}
+
+.timeline__head circle {
+  fill: var(--signal);
+  stroke: var(--ink);
+  stroke-width: 2;
+}
+
+.timeline__range {
+  position: absolute;
+  top: 0;
+  height: 100%;
+  margin: 0;
+  opacity: 0;
+  cursor: ew-resize;
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+.timeline__range::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 24px;
+  height: 100px;
+}
+
+.timeline__range::-moz-range-thumb {
+  width: 24px;
+  height: 100px;
+  border: 0;
+}
+
+.timeline__tip {
+  position: absolute;
+  z-index: 3;
+  padding: 4px 10px;
+  border-radius: 8px;
+  background: var(--ink);
+  color: var(--bg);
+  font-size: 0.8rem;
+  white-space: nowrap;
+  transform: translate(-50%, calc(-100% - 6px));
+  pointer-events: none;
+}
+
+/* -- the latest event --------------------------------------------------------------------- */
+
+.ticker {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 18px;
+  border-top: 1px solid var(--line);
+  background: var(--paper-2);
+  font-size: 0.925rem;
+  animation: ticker-in 600ms var(--ease-out);
+}
+
+@keyframes ticker-in {
+  from {
+    background: color-mix(in srgb, var(--signal) 40%, var(--paper-2));
+  }
+}
+
+.ticker__kind {
+  flex: none;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--signal);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--signal) 30%, transparent);
+}
+
+.ticker__text {
+  min-width: 0;
+}
+
+.ticker__label {
+  margin-right: 6px;
+  font-weight: 750;
+}
+
+.ticker__meta {
+  margin-left: auto;
+  color: var(--ink-3);
+  font-size: 0.8rem;
+  white-space: nowrap;
+}
+
+/* -- sections below the hero ------------------------------------------------------------------ */
+
+.section-head {
+  max-width: 760px;
+  margin-bottom: 30px;
+}
+
+.section-head h2 {
+  font-size: clamp(2rem, 1.4rem + 1.8vw, 2.8rem);
+  font-weight: 800;
+  letter-spacing: -0.028em;
+}
+
+.section-head p {
+  margin-top: 10px;
+  color: var(--ink-2);
+  font-size: 1.1rem;
+}
+
+/* -- how it works: a route with three stops -------------------------------------------------- */
+
+.how {
+  margin-top: clamp(56px, 7vw, 96px);
+  scroll-margin-top: calc(var(--topbar-h) + 16px);
+}
+
+.route {
+  position: relative;
+  display: grid;
+  gap: 44px;
+  margin: 0;
+  padding: 0 0 0 76px;
+  list-style: none;
+}
+
+.route::before {
+  /* the four floor lines again, now leading down the page */
+  content: '';
+  position: absolute;
+  top: 20px;
+  bottom: 20px;
+  left: 18px;
+  width: 18px;
+  border-radius: 4px;
+  background: linear-gradient(
+    to right,
+    var(--ward-general) 0 3px,
+    transparent 3px 5px,
+    var(--ward-twin) 5px 8px,
+    transparent 8px 10px,
+    var(--ward-private) 10px 13px,
+    transparent 13px 15px,
+    var(--ward-icu) 15px 18px
+  );
+}
+
+.stop {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 5fr) minmax(0, 7fr);
+  gap: 18px 36px;
+  align-items: start;
+}
+
+.stop__num {
+  position: absolute;
+  left: -76px;
+  top: 0;
+  display: grid;
+  place-items: center;
+  width: 54px;
+  height: 54px;
+  border-radius: 12px;
+  background: var(--sign);
+  color: #ffffff;
+  font-weight: 800;
+  font-size: 1.6rem;
+  box-shadow: 0 0 0 6px var(--bg);
+}
+
+.stop__text h3 {
+  font-size: clamp(1.35rem, 1.15rem + 0.6vw, 1.7rem);
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+
+.stop__text p {
+  margin-top: 10px;
+  color: var(--ink-2);
+  font-size: 1.025rem;
+}
+
+.stop__demo {
+  display: grid;
+  gap: 14px;
+  justify-items: start;
+}
+
+.stop__demo > .perm-wrap,
+.stop__demo > .code,
+.stop__demo > .result,
+.stop__demo > .logtail {
+  width: 100%;
+}
+
+@media (max-width: 900px) {
+  .route {
+    padding-left: 62px;
+  }
+
+  .route::before {
+    left: 14px;
+  }
+
+  .stop {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .stop__num {
+    left: -62px;
+    width: 46px;
+    height: 46px;
+    font-size: 1.35rem;
+  }
+}
+
+.perm-wrap {
+  /* positioned, so the visually hidden cell text scrolls with the table instead of widening the page */
+  position: relative;
+  overflow-x: auto;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--paper);
+}
+
+.perm {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9rem;
+}
+
+.perm th,
+.perm td {
+  padding: 9px 10px;
+  border-bottom: 1px solid var(--line);
+  text-align: center;
+}
+
+.perm thead th {
+  color: var(--ink-3);
+  font-size: 0.8rem;
+  font-weight: 650;
+  white-space: nowrap;
+}
+
+.perm tbody th {
+  text-align: left;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.perm tbody tr:last-child th,
+.perm tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+.perm tr.is-you {
+  background: color-mix(in srgb, var(--signal) 24%, var(--paper));
+}
+
+.perm__you {
+  margin-left: 8px;
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: var(--sign);
+  color: #ffffff;
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+
+.perm__yes {
+  display: inline-grid;
+  place-items: center;
+  color: var(--ok);
+}
+
+.perm__no {
+  color: var(--ink-3);
+}
+
+.result {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  padding: 14px 16px;
+  border-radius: 14px;
+  background: var(--paper);
+  border: 1px solid var(--line);
+  animation: result-in 360ms var(--ease-out);
+}
+
+@keyframes result-in {
+  from {
+    transform: translateY(6px);
+    opacity: 0;
+  }
+}
+
+.result > .icon {
+  flex: none;
+  margin-top: 1px;
+}
+
+.result--refused {
+  border-color: color-mix(in srgb, var(--bad) 45%, var(--line));
+  background: var(--bad-wash);
+}
+
+.result--refused > .icon {
+  color: var(--bad);
+}
+
+.result--ok {
+  border-color: color-mix(in srgb, var(--ok) 45%, var(--line));
+  background: var(--ok-wash);
+}
+
+.result--ok > .icon {
+  color: var(--ok);
+}
+
+.result p + p {
+  margin-top: 8px;
+}
+
+.result__quote {
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: var(--paper);
+  font-family: var(--mono);
+  font-size: 0.875rem;
+  overflow-wrap: anywhere;
+}
+
+.logtail {
+  display: grid;
+  margin: 0;
+  padding: 6px 14px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--paper);
+  list-style: none;
+  font-size: 0.925rem;
+}
+
+.logtail li {
+  display: grid;
+  grid-template-columns: 4.5em 1fr;
+  gap: 10px;
+  padding: 8px 0;
+  border-bottom: 1px dotted var(--line-2);
+}
+
+.logtail li:last-child {
+  border-bottom: 0;
+}
+
+.logtail__id {
+  color: var(--ink-3);
+  font-weight: 650;
+}
+
+/* -- the proof figure ----------------------------------------------------------------------- */
+
+.proof {
+  margin-top: clamp(56px, 7vw, 96px);
+}
+
+.proof__rows {
+  border: 1px solid var(--line);
+  border-radius: var(--radius-l);
+  background: var(--paper);
+  overflow: hidden;
+}
+
+.proof__row {
+  display: grid;
+  grid-template-columns: minmax(200px, 1.1fr) auto minmax(190px, 1fr);
+  align-items: center;
+  gap: 18px 32px;
+  padding: 22px 26px;
+  border-bottom: 1px solid var(--line);
+}
+
+.proof__row:last-child {
+  border-bottom: 0;
+}
+
+.proof__row--wardos {
+  background: color-mix(in srgb, var(--ok) 7%, var(--paper));
+}
+
+.proof__name h3 {
+  font-size: 1.2rem;
+  font-weight: 800;
+}
+
+.proof__name p {
+  margin-top: 4px;
+  color: var(--ink-2);
+  font-size: 0.925rem;
+}
+
+.units {
+  max-width: 100%;
+  height: auto;
+}
+
+.units__wrong {
+  fill: var(--bad);
+}
+
+.units__right {
+  fill: none;
+  stroke: var(--line-2);
+  stroke-width: 1.5;
+}
+
+.proof__row--wardos .units__right {
+  stroke: var(--ok);
+}
+
+.proof__count p:first-child {
+  color: var(--ink-2);
+}
+
+.proof__count strong {
+  margin-right: 4px;
+  color: var(--ink);
+  font-size: 2.3rem;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  line-height: 1;
+}
+
+.proof__row--wardos .proof__count strong {
+  color: var(--ok);
+}
+
+.proof__note {
+  margin-top: 4px;
+  color: var(--ink-3);
+  font-size: 0.875rem;
+}
+
+.proof__foot {
+  display: grid;
+  gap: 10px;
+  max-width: 80ch;
+  margin-top: 18px;
+  color: var(--ink-2);
+}
+
+.proof__legend {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.875rem;
+}
+
+.units-key {
+  display: inline-block;
+  width: 11px;
+  height: 11px;
+  border-radius: 2px;
+}
+
+.units-key--wrong {
+  background: var(--bad);
+}
+
+.units-key--right {
+  margin-left: 12px;
+  border: 1.5px solid var(--line-2);
+}
+
+@media (max-width: 860px) {
+  .proof__row {
+    grid-template-columns: 1fr;
+    gap: 12px;
+    padding: 18px;
+  }
+}

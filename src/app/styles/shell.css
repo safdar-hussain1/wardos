@@ -1,0 +1,591 @@
+/* ==========================================================================
+   The frame: top bar, navigation, role menu, footer, phone tab bar, and the
+   two screens shown outside the app (booting, signed out).
+   ========================================================================== */
+
+#root {
+  min-height: 100vh;
+}
+
+.app {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+/* -- top bar ------------------------------------------------------------------ */
+
+.topbar {
+  position: sticky;
+  top: 0;
+  z-index: 40;
+  background: color-mix(in srgb, var(--bg) 86%, transparent);
+  backdrop-filter: saturate(1.4) blur(14px);
+  -webkit-backdrop-filter: saturate(1.4) blur(14px);
+  border-bottom: 1px solid color-mix(in srgb, var(--line) 80%, transparent);
+}
+
+.topbar__inner {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  max-width: var(--page-max);
+  height: var(--topbar-h);
+  margin: 0 auto;
+  padding: 0 var(--gutter);
+}
+
+.brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--ink);
+  font-weight: 800;
+  font-size: 1.2rem;
+  letter-spacing: -0.02em;
+  text-decoration: none;
+}
+
+.mainnav {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  margin-right: auto;
+}
+
+.navlink {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  color: var(--ink-2);
+  font-weight: 650;
+  text-decoration: none;
+}
+
+.navlink--top {
+  min-height: 40px;
+  padding: 0 12px;
+  border-radius: 10px;
+  font-size: 0.95rem;
+}
+
+.navlink--top:hover {
+  background: var(--paper-2);
+  color: var(--ink);
+}
+
+.navlink--top.is-current {
+  background: var(--sign);
+  color: #ffffff;
+}
+
+[data-theme='dark'] .navlink--top.is-current {
+  background: var(--paper-2);
+  color: var(--ink);
+  box-shadow: inset 0 0 0 1px var(--line-2);
+}
+
+.navlink.is-locked {
+  color: var(--ink-3);
+}
+
+.navlink--top.is-current.is-locked {
+  color: #ffffff;
+}
+
+[data-theme='dark'] .navlink--top.is-current.is-locked {
+  color: var(--ink);
+}
+
+.navlink__lock {
+  opacity: 0.85;
+}
+
+.navlink--quiet {
+  margin-left: 6px;
+  padding-left: 14px;
+  border-left: 1px solid var(--line);
+  border-radius: 0;
+}
+
+.navlink--quiet:hover {
+  background: none;
+  text-decoration: underline;
+}
+
+.topbar__tools {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* -- role menu -------------------------------------------------------------------- */
+
+.rolemenu {
+  position: relative;
+}
+
+.rolemenu__button {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 44px;
+  padding: 4px 10px 4px 5px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--paper);
+  color: var(--ink);
+  text-align: left;
+}
+
+.rolemenu__button:hover {
+  border-color: var(--line-2);
+}
+
+.rolemenu__text {
+  display: grid;
+  line-height: 1.15;
+}
+
+.rolemenu__small {
+  color: var(--ink-3);
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.rolemenu__role {
+  font-weight: 750;
+  font-size: 0.925rem;
+}
+
+.rolemenu__panel {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 8px);
+  z-index: 50;
+  width: min(360px, calc(100vw - 24px));
+  padding: 8px;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: var(--paper);
+  box-shadow: var(--shadow-pop);
+  animation: pop-in 180ms var(--ease-out);
+}
+
+@keyframes pop-in {
+  from {
+    transform: translateY(-6px);
+    opacity: 0;
+  }
+}
+
+.rolemenu__heading {
+  padding: 8px 10px 6px;
+  color: var(--ink-3);
+  font-size: 0.85rem;
+  font-weight: 650;
+}
+
+.rolemenu__list {
+  display: grid;
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.rolemenu__item {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 10px;
+  border: 0;
+  border-radius: 12px;
+  background: none;
+  text-align: left;
+}
+
+.rolemenu__item:hover {
+  background: var(--paper-2);
+}
+
+.rolemenu__item.is-current {
+  background: color-mix(in srgb, var(--link) 9%, var(--paper));
+}
+
+.rolemenu__blurb {
+  display: block;
+  color: var(--ink-2);
+  font-size: 0.85rem;
+  line-height: 1.35;
+}
+
+.rolemenu__check {
+  color: var(--link);
+}
+
+.rolemenu__foot {
+  display: grid;
+  gap: 2px;
+  margin-top: 6px;
+  padding-top: 6px;
+  border-top: 1px solid var(--line);
+}
+
+.menu-action {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 44px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 10px;
+  background: none;
+  color: var(--ink-2);
+  font-weight: 650;
+  text-align: left;
+}
+
+.menu-action:hover {
+  background: var(--paper-2);
+  color: var(--ink);
+}
+
+.rolemenu__confirm {
+  display: grid;
+  gap: 10px;
+  padding: 10px;
+  font-size: 0.925rem;
+}
+
+.rolemenu__confirm-actions {
+  display: flex;
+  gap: 8px;
+}
+
+/* -- main and footer ------------------------------------------------------------------- */
+
+.main {
+  flex: 1;
+  width: 100%;
+  max-width: var(--page-max);
+  margin: 0 auto;
+  padding: 24px var(--gutter) 40px;
+}
+
+.main:focus {
+  outline: none;
+}
+
+.appfoot {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 12px 32px;
+  width: 100%;
+  max-width: var(--page-max);
+  margin: 0 auto;
+  padding: 22px var(--gutter);
+  border-top: 1px solid var(--line);
+  color: var(--ink-2);
+  font-size: 0.9rem;
+}
+
+.appfoot p:first-child {
+  max-width: 68ch;
+}
+
+.appfoot__links {
+  display: flex;
+  gap: 18px;
+}
+
+/* the author credit, outside the app in index.html */
+.site-credit {
+  padding: 18px var(--gutter) 28px;
+  color: var(--ink-3);
+  font-size: 0.875rem;
+  text-align: center;
+}
+
+.site-credit a {
+  color: var(--ink-2);
+  font-weight: 650;
+}
+
+/* -- phone tab bar ------------------------------------------------------------------------ */
+
+.tabbar {
+  display: none;
+}
+
+@media (max-width: 960px) {
+  .mainnav {
+    display: none;
+  }
+
+  .topbar__inner {
+    justify-content: space-between;
+  }
+
+  .tabbar {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 45;
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    padding: 6px 6px calc(6px + env(safe-area-inset-bottom));
+    border-top: 1px solid var(--line);
+    background: color-mix(in srgb, var(--paper) 92%, transparent);
+    backdrop-filter: saturate(1.4) blur(14px);
+    -webkit-backdrop-filter: saturate(1.4) blur(14px);
+  }
+
+  .navlink--tabs {
+    flex-direction: column;
+    justify-content: center;
+    gap: 2px;
+    min-height: 54px;
+    border-radius: 12px;
+    font-size: 0.75rem;
+    text-align: center;
+  }
+
+  .navlink--tabs.is-current {
+    color: var(--ink);
+    background: var(--paper-2);
+  }
+
+  .navlink--tabs.is-current .icon:first-child {
+    color: var(--link);
+  }
+
+  .navlink--tabs .navlink__lock {
+    position: absolute;
+    top: 6px;
+    right: calc(50% - 22px);
+  }
+
+  body {
+    padding-bottom: calc(70px + env(safe-area-inset-bottom));
+  }
+}
+
+@media (max-width: 420px) {
+  .rolemenu__small {
+    display: none;
+  }
+
+  .brand__name {
+    font-size: 1.1rem;
+  }
+}
+
+/* -- booting -------------------------------------------------------------------------- */
+
+.boot {
+  display: grid;
+  min-height: 100vh;
+  place-items: center;
+  padding: 24px 16px;
+}
+
+.boot__sign {
+  width: min(640px, 100%);
+  padding: clamp(28px, 5vw, 48px);
+  border-radius: var(--radius-l);
+  background: var(--sign);
+  color: var(--sign-ink);
+  box-shadow: var(--shadow-plan);
+}
+
+.boot__brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 26px;
+  font-weight: 800;
+  font-size: 1.15rem;
+  letter-spacing: -0.02em;
+}
+
+.boot__brand .brand-mark {
+  width: 28px;
+  height: 28px;
+}
+
+.boot__title {
+  font-size: clamp(2.1rem, 1.5rem + 2.6vw, 3.2rem);
+  font-weight: 800;
+  line-height: 1.04;
+  letter-spacing: -0.03em;
+}
+
+.boot__lead {
+  margin-top: 16px;
+  color: var(--sign-ink-2);
+  font-size: 1.075rem;
+  max-width: 52ch;
+}
+
+.boot__status {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 28px;
+  color: var(--signal);
+  font-weight: 700;
+}
+
+.boot__status::before {
+  content: '';
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  border: 2px solid var(--signal);
+  border-right-color: transparent;
+  animation: spin 900ms linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* -- signed out ---------------------------------------------------------------------------- */
+
+.signin {
+  display: grid;
+  min-height: 100vh;
+  place-items: center;
+  padding: 32px 16px;
+}
+
+.signin__card {
+  width: min(620px, 100%);
+}
+
+.signin__brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 22px;
+  font-weight: 800;
+  font-size: 1.35rem;
+  letter-spacing: -0.02em;
+}
+
+.signin__title {
+  font-size: clamp(2rem, 1.6rem + 1.8vw, 2.8rem);
+  font-weight: 800;
+  letter-spacing: -0.025em;
+}
+
+.signin__lead {
+  margin: 10px 0 22px;
+  color: var(--ink-2);
+  font-size: 1.075rem;
+}
+
+.signin__roles {
+  display: grid;
+  gap: 10px;
+  margin: 16px 0 22px;
+  padding: 0;
+  list-style: none;
+}
+
+.rolecard {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 14px;
+  width: 100%;
+  padding: 14px 16px;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: var(--paper);
+  text-align: left;
+  transition: border-color 160ms var(--ease-out), transform 160ms var(--ease-out);
+}
+
+.rolecard:hover {
+  border-color: var(--ink-3);
+  transform: translateY(-1px);
+}
+
+.rolecard__text {
+  display: grid;
+  gap: 2px;
+}
+
+.rolecard__text span {
+  color: var(--ink-2);
+  font-size: 0.925rem;
+}
+
+.rolecard__user {
+  color: var(--ink-3);
+  font-family: var(--mono);
+  font-size: 0.875rem;
+}
+
+.signin__manual {
+  padding: 14px 16px;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: var(--paper);
+}
+
+.signin__manual summary {
+  cursor: pointer;
+  font-weight: 650;
+}
+
+.signin__manual[open] summary {
+  margin-bottom: 14px;
+}
+
+/* -- a view this role may not open --------------------------------------------------------- */
+
+.lockedview {
+  display: grid;
+  justify-items: start;
+  gap: 14px;
+  max-width: 640px;
+  margin: 48px auto;
+  padding: 32px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-l);
+  background: var(--paper);
+}
+
+.lockedview__icon {
+  display: grid;
+  place-items: center;
+  width: 56px;
+  height: 56px;
+  border-radius: 14px;
+  background: var(--paper-2);
+  color: var(--ink-2);
+}
+
+.lockedview h1 {
+  font-size: clamp(1.6rem, 1.3rem + 1vw, 2.1rem);
+}
+
+.lockedview p {
+  color: var(--ink-2);
+}
+
+.lockedview__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}

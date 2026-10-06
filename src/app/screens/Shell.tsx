@@ -1,165 +1,225 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import type { Actor } from '../../core/engine'
 import type { Role } from '../../core/permissions'
-import { can } from '../../core/permissions'
 import { store } from '../store'
+import { ROLE_BLURBS, ROLE_LABELS, ROLE_ORDER } from '../labels'
+import { NAV_ROUTES, routeDef } from '../routes'
+import type { RouteKey } from '../routes'
+import { useTheme, navigateTo } from '../hooks'
+import { switchRole, signOut } from '../session'
+import { BrandMark, Icon } from '../icons'
+import type { IconName } from '../icons'
 
-export type ScreenKey = 'deck' | 'ward' | 'billing' | 'payroll' | 'ambulances' | 'audit' | 'time-machine' | 'about'
-
-const ROLE_LABELS: Record<Role, string> = {
-  ADMIN: 'Administrator',
-  RECEPTION: 'Reception Desk',
-  DOCTOR: 'Doctor',
-  NURSE: 'Nurse',
-  BILLING: 'Billing Desk',
+const NAV_ICONS: Record<RouteKey, IconName> = {
+  hospital: 'plan',
+  bills: 'bill',
+  ambulances: 'ambulance',
+  staff: 'staff',
+  'event-log': 'log',
+  measurements: 'info',
 }
 
-/**
- * The nav's fixed screen order, each with the permission check that decides
- * whether it's shown for the current role. Payroll and Audit trail are
- * ADMIN-only (no dedicated permission for either in `permissions.ts`, so
- * gated directly on role, same as the components themselves guard).
- */
-const NAV_ITEMS: { key: ScreenKey; label: string; visible: (role: Role) => boolean }[] = [
-  { key: 'deck', label: 'Command deck', visible: () => true },
-  { key: 'ward', label: 'Ward board', visible: () => true },
-  { key: 'billing', label: 'Billing desk', visible: (role) => can(role, 'VIEW_BILLING') },
-  { key: 'payroll', label: 'Payroll', visible: (role) => role === 'ADMIN' },
-  { key: 'ambulances', label: 'Ambulances', visible: (role) => can(role, 'VIEW_CLINICAL') },
-  { key: 'audit', label: 'Audit trail', visible: (role) => role === 'ADMIN' },
-  { key: 'time-machine', label: 'Time machine', visible: () => true },
-  { key: 'about', label: 'Results', visible: () => true },
-]
-
-/** One quiet line under each screen title — what this screen is for. */
-const SCREEN_SUBTITLES: Record<ScreenKey, string> = {
-  deck: 'The live operating picture — census, occupancy, revenue, and the latest events.',
-  ward: 'Thirty-two beds across four wards. Select a free bed to admit, an occupied one to open the chart.',
-  billing: 'Running previews for every active admission, and the frozen invoices behind every discharge.',
-  payroll: 'Monthly pay for the whole roster, itemized rule by rule. Select a row for the breakdown.',
-  ambulances: 'The fleet — dispatch a free unit, return one on station.',
-  audit: 'Every command this hospital has ever run, event by event.',
-  'time-machine':
-    'Scrub across six months of history — every number is a pure replay of the event log, never a query against the live database.',
-  about: 'What WardOS is, five structural claims, and the benchmark that backs them.',
-}
-
-/** The brand mark: a ward-cross in the accent ink. Pure inline SVG. */
-function BrandMark() {
+function NavLinks({ actor, route, variant }: { actor: Actor; route: RouteKey; variant: 'top' | 'tabs' }) {
   return (
-    <svg className="brand-mark" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-      <rect x="1" y="1" width="22" height="22" rx="6" fill="var(--accent)" />
-      <path d="M10 5.5h4v4.5H18.5v4H14v4.5h-4V14H5.5v-4H10z" fill="var(--accent-contrast)" />
-    </svg>
+    <>
+      {NAV_ROUTES.map((key) => {
+        const def = routeDef(key)
+        const locked = !def.allowed(actor.role)
+        const current = route === key
+        return (
+          <a
+            key={key}
+            href={`#${key}`}
+            className={`navlink navlink--${variant}${current ? ' is-current' : ''}${locked ? ' is-locked' : ''}`}
+            aria-current={current ? 'page' : undefined}
+            aria-label={locked ? `${def.label} (only ${def.whoCan})` : undefined}
+          >
+            <Icon name={NAV_ICONS[key]} size={variant === 'tabs' ? 22 : 18} />
+            <span className="navlink__text">{def.label}</span>
+            {locked && <Icon name="lock" size={14} className="navlink__lock" />}
+          </a>
+        )
+      })}
+    </>
   )
 }
 
-function readTheme(): 'light' | 'dark' {
-  if (typeof document === 'undefined') return 'light'
-  return document.documentElement.getAttribute('data-theme') === 'dark' ? 'dark' : 'light'
-}
+function RoleMenu({ actor }: { actor: Actor }) {
+  const [open, setOpen] = useState(false)
+  const [confirmReset, setConfirmReset] = useState(false)
+  const wrapRef = useRef<HTMLDivElement | null>(null)
+  const buttonRef = useRef<HTMLButtonElement | null>(null)
 
-export default function Shell({
-  actor,
-  activeScreen,
-  onNavigate,
-  children,
-}: {
-  actor: Actor
-  activeScreen: ScreenKey
-  onNavigate: (screen: ScreenKey) => void
-  children: ReactNode
-}) {
-  const [theme, setTheme] = useState<'light' | 'dark'>(readTheme)
-
-  function handleToggleTheme(): void {
-    const next = theme === 'dark' ? 'light' : 'dark'
-    // Persist first, then stamp — so any reload (e.g. reset demo) already
-    // finds the choice in localStorage and boots straight into it.
-    try {
-      localStorage.setItem('wardos-theme', next)
-    } catch {
-      /* storage unavailable — the attribute still switches this session */
+  useEffect(() => {
+    if (!open) return
+    function onPointer(e: PointerEvent): void {
+      if (wrapRef.current && !wrapRef.current.contains(e.target as Node)) setOpen(false)
     }
-    document.documentElement.setAttribute('data-theme', next)
-    setTheme(next)
+    function onKey(e: KeyboardEvent): void {
+      if (e.key === 'Escape') {
+        setOpen(false)
+        buttonRef.current?.focus()
+      }
+    }
+    document.addEventListener('pointerdown', onPointer)
+    document.addEventListener('keydown', onKey)
+    return () => {
+      document.removeEventListener('pointerdown', onPointer)
+      document.removeEventListener('keydown', onKey)
+    }
+  }, [open])
+
+  useEffect(() => {
+    if (!open) setConfirmReset(false)
+  }, [open])
+
+  function pick(role: Role): void {
+    setOpen(false)
+    if (role !== actor.role) switchRole(role)
+    buttonRef.current?.focus()
   }
 
-  function handleResetDemo(): void {
-    const confirmed = window.confirm(
-      'Reset the demo? This wipes all local changes and restores the original seeded hospital.',
-    )
-    if (!confirmed) return
+  function reset(): void {
+    setOpen(false)
+    navigateTo('hospital')
     void store.resetDemo()
   }
 
-  const active = NAV_ITEMS.find((item) => item.key === activeScreen)
-
   return (
-    <div className="app-shell">
-      <header className="app-header">
-        <div className="brand">
-          <BrandMark />
-          <h1>WardOS</h1>
-        </div>
-        <nav className="app-nav" aria-label="Screens">
-          {NAV_ITEMS.filter((item) => item.visible(actor.role)).map((item) => (
-            <button
-              key={item.key}
-              type="button"
-              className={`nav-link ${activeScreen === item.key ? 'nav-link--active' : ''}`}
-              aria-current={activeScreen === item.key ? 'page' : undefined}
-              onClick={() => onNavigate(item.key)}
-            >
-              {item.label}
-            </button>
-          ))}
-        </nav>
-        <div className="session-info">
-          <span className="session-user">{actor.username}</span>
-          <span className="role-badge">{ROLE_LABELS[actor.role]}</span>
-          <button
-            type="button"
-            className="theme-toggle"
-            onClick={handleToggleTheme}
-            aria-label={theme === 'dark' ? 'Switch to light theme' : 'Switch to dark theme'}
-            title={theme === 'dark' ? 'Switch to light theme' : 'Switch to dark theme'}
-          >
-            {theme === 'dark' ? (
-              <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-                <circle cx="12" cy="12" r="4.5" fill="none" stroke="currentColor" strokeWidth="1.8" />
-                <g stroke="currentColor" strokeWidth="1.8" strokeLinecap="round">
-                  <path d="M12 2.5v2.5M12 19v2.5M2.5 12H5M19 12h2.5M5.3 5.3l1.8 1.8M16.9 16.9l1.8 1.8M18.7 5.3l-1.8 1.8M7.1 16.9l-1.8 1.8" />
-                </g>
-              </svg>
+    <div className="rolemenu" ref={wrapRef}>
+      <button
+        type="button"
+        className="rolemenu__button"
+        aria-expanded={open}
+        aria-haspopup="true"
+        onClick={() => setOpen((o) => !o)}
+        ref={buttonRef}
+      >
+        <span className={`avatar avatar--${actor.role.toLowerCase()}`} aria-hidden="true">
+          {ROLE_LABELS[actor.role][0]}
+        </span>
+        <span className="rolemenu__text">
+          <span className="rolemenu__small">On shift as</span>
+          <span className="rolemenu__role">{ROLE_LABELS[actor.role]}</span>
+        </span>
+        <Icon name="chevron" size={16} />
+      </button>
+      {open && (
+        <div className="rolemenu__panel">
+          <p className="rolemenu__heading">Switch role to see what changes</p>
+          <ul className="rolemenu__list">
+            {ROLE_ORDER.map((role) => (
+              <li key={role}>
+                <button
+                  type="button"
+                  className={`rolemenu__item${role === actor.role ? ' is-current' : ''}`}
+                  aria-current={role === actor.role ? 'true' : undefined}
+                  onClick={() => pick(role)}
+                >
+                  <span className={`avatar avatar--${role.toLowerCase()}`} aria-hidden="true">
+                    {ROLE_LABELS[role][0]}
+                  </span>
+                  <span>
+                    <strong>{ROLE_LABELS[role]}</strong>
+                    <span className="rolemenu__blurb">{ROLE_BLURBS[role]}</span>
+                  </span>
+                  {role === actor.role && <Icon name="check" size={18} className="rolemenu__check" />}
+                </button>
+              </li>
+            ))}
+          </ul>
+          <div className="rolemenu__foot">
+            {confirmReset ? (
+              <div className="rolemenu__confirm">
+                <p>Reset the demo? Your changes are wiped and the original six-month hospital comes back.</p>
+                <div className="rolemenu__confirm-actions">
+                  <button type="button" className="button button--danger button--small" onClick={reset}>
+                    Reset the demo
+                  </button>
+                  <button type="button" className="button button--ghost button--small" onClick={() => setConfirmReset(false)}>
+                    Cancel
+                  </button>
+                </div>
+              </div>
             ) : (
-              <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-                <path
-                  d="M20.5 14.5A8.5 8.5 0 0 1 9.5 3.5a8.5 8.5 0 1 0 11 11z"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="1.8"
-                  strokeLinejoin="round"
-                />
-              </svg>
+              <>
+                <button type="button" className="menu-action" onClick={() => setConfirmReset(true)}>
+                  <Icon name="reset" size={18} /> Reset the demo
+                </button>
+                <button
+                  type="button"
+                  className="menu-action"
+                  onClick={() => {
+                    setOpen(false)
+                    signOut()
+                  }}
+                >
+                  <Icon name="signout" size={18} /> Sign out
+                </button>
+              </>
             )}
-          </button>
-          <button type="button" className="session-action" onClick={handleResetDemo}>
-            Reset demo
-          </button>
-          <button type="button" className="session-action" onClick={() => store.logout()}>
-            Log out
-          </button>
-        </div>
-      </header>
-      {active && (
-        <div className="screen-head">
-          <h2 className="screen-head__title">{active.label}</h2>
-          <p className="screen-head__sub">{SCREEN_SUBTITLES[active.key]}</p>
+          </div>
         </div>
       )}
-      <main className="app-content">{children}</main>
+    </div>
+  )
+}
+
+function ThemeToggle() {
+  const [theme, setTheme] = useTheme()
+  const next = theme === 'dark' ? 'light' : 'dark'
+  const label = next === 'dark' ? 'Switch to night shift (dark theme)' : 'Switch to day shift (light theme)'
+  return (
+    <button type="button" className="icon-button" onClick={() => setTheme(next)} aria-label={label} title={label}>
+      <Icon name={theme === 'dark' ? 'sun' : 'moon'} />
+    </button>
+  )
+}
+
+export default function Shell({ actor, route, children }: { actor: Actor; route: RouteKey; children: ReactNode }) {
+  return (
+    <div className="app">
+      <a className="skip-link" href="#main">
+        Skip to content
+      </a>
+      <header className="topbar">
+        <div className="topbar__inner">
+          <a className="brand" href="#hospital" aria-label="WardOS, the hospital view">
+            <BrandMark />
+            <span className="brand__name">WardOS</span>
+          </a>
+          <nav className="mainnav" aria-label="Views">
+            <NavLinks actor={actor} route={route} variant="top" />
+            <a className="navlink navlink--top navlink--quiet" href="#how-it-works">
+              <span className="navlink__text">How it works</span>
+            </a>
+          </nav>
+          <div className="topbar__tools">
+            <ThemeToggle />
+            <RoleMenu actor={actor} />
+          </div>
+        </div>
+      </header>
+
+      <main id="main" className="main" tabIndex={-1}>
+        {children}
+      </main>
+
+      <section className="appfoot" aria-label="About this demo">
+        <p>
+          Everything on this page runs in your browser: a SQLite database compiled to WebAssembly, saved on this
+          device only. The clock is fixed at 09:00 on 1 August 2026, the hospital’s “today”.
+        </p>
+        <p className="appfoot__links">
+          <a href="#how-it-works">How it works</a>
+          <a href="#measurements">Measurements</a>
+        </p>
+      </section>
+
+      <nav className="tabbar" aria-label="Views">
+        <NavLinks actor={actor} route={route} variant="tabs" />
+      </nav>
     </div>
   )
 }

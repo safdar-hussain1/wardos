@@ -19,13 +19,13 @@
     <meta property="og:image" content="https://safdar-hussain1.github.io/wardos/og-image.png" />
     <meta property="og:image:width" content="1200" />
     <meta property="og:image:height" content="630" />
-    <meta property="og:image:alt" content="The WardOS command deck: patients, active admissions, free beds, outstanding balance and refunds, above occupancy by ward and revenue by charge type." />
+    <meta property="og:image:alt" content="The WardOS hospital view: a navy directory sign listing the four wards beside a live floor plan of 32 beds, coloured floor lines running from reception to each ward, and the six-month time machine below." />
 
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:title" content="WardOS — Hospital Management System in Your Browser" />
     <meta name="twitter:description" content="Run a 32-bed hospital in your browser: admissions, billing, payroll and ambulances on a real SQLite database with a full audit log. Nothing leaves your device." />
     <meta name="twitter:image" content="https://safdar-hussain1.github.io/wardos/og-image.png" />
-    <meta name="twitter:image:alt" content="The WardOS command deck: patients, active admissions, free beds, outstanding balance and refunds, above occupancy by ward and revenue by charge type." />
+    <meta name="twitter:image:alt" content="The WardOS hospital view: a navy directory sign listing the four wards beside a live floor plan of 32 beds, coloured floor lines running from reception to each ward, and the six-month time machine below." />
 
     <script type="application/ld+json">
       {
@@ -86,22 +86,29 @@
         document.documentElement.setAttribute('data-theme', theme)
       })()
     </script>
-    <script type="module" crossorigin src="./assets/index-BxmciB2j.js"></script>
-    <link rel="stylesheet" crossorigin href="./assets/index-CxFYmkOA.css">
+    <script type="module" crossorigin src="./assets/index-COa7FNor.js"></script>
+    <link rel="stylesheet" crossorigin href="./assets/index-Bl257Vgw.css">
   </head>
   <body>
     <div id="root">
       <!-- Shown until the app mounts: App.tsx renders this same markup while it boots. -->
-      <main class="login-shell">
-        <div class="brand brand--login">
-          <svg class="brand-mark" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-            <rect x="1" y="1" width="22" height="22" rx="6" fill="var(--accent)" />
-            <path d="M10 5.5h4v4.5H18.5v4H14v4.5h-4V14H5.5v-4H10z" fill="var(--accent-contrast)" />
-          </svg>
-          <h1>WardOS</h1>
+      <div class="boot">
+        <div class="boot__sign">
+          <p class="boot__brand">
+            <svg class="brand-mark" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+              <rect x="1" y="1" width="22" height="22" rx="6" fill="#ffffff" />
+              <path d="M10 5.5h4v4.5H18.5v4H14v4.5h-4V14H5.5v-4H10z" fill="#14233f" />
+            </svg>
+            WardOS
+          </p>
+          <h1 class="boot__title">A whole hospital, running in this browser tab.</h1>
+          <p class="boot__lead">
+            WardOS runs a 32-bed hospital on a real SQLite database inside the page: admissions, bills, ambulances
+            and staff pay, with six months of history behind them. Nothing you do here leaves your device.
+          </p>
+          <p class="boot__status">Opening the hospital database…</p>
         </div>
-        <p class="login-tagline">Booting WardOS…</p>
-      </main>
+      </div>
     </div>
     <footer class="site-credit">
       Built by <a href="https://github.com/safdar-hussain1" rel="author">Safdar Hussain</a>

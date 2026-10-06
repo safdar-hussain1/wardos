@@ -24,7 +24,7 @@ Dependencies point downward only. `core/` imports nothing from the layers above 
 
 Every state-changing command appends exactly one row to `events` — actor, action, entity, payload JSON, and the injected clock's timestamp — **inside the same transaction** as the mutation itself. If the command fails, neither the mutation nor the event lands; there is no path where state changes without a matching event or an event describes a change that didn't happen.
 
-The table is append-only at the schema level: `BEFORE UPDATE` and `BEFORE DELETE` triggers raise on any attempt. The audit trail screen, the time machine, and claim C2 all read from this one table.
+The table is append-only at the schema level: `BEFORE UPDATE` and `BEFORE DELETE` triggers raise on any attempt. The event log view, the time machine, and claim C2 all read from this one table.
 
 `replay(events, beds)` (in `src/core/replay.ts`) folds the log into a plain-object projection of the operational tables — patients, admissions, charges, invoices, dispatches, staff — and a test asserts that projection equals the live database table for table, id for id, field for field, after the full six-month seed. The time machine is the same fold stopped at an earlier instant: read-only by construction, a projection that never touches the live DB.
 

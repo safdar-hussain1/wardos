@@ -2,72 +2,100 @@ import { Fragment, useState } from 'react'
 import type { Engine, Actor } from '../../core/engine'
 import { formatINR } from '../format'
 import { payrollVm } from '../viewmodels'
+import { Icon } from '../icons'
+
+/** The staff model's role codes (DOCTOR, NURSE) as words. */
+function titleCase(code: string): string {
+  const lower = code.toLowerCase()
+  return lower === 'admin' ? 'Administrator' : lower.charAt(0).toUpperCase() + lower.slice(1)
+}
 
 export default function Payroll({ engine, actor }: { engine: Engine; actor: Actor }) {
-  const [expandedId, setExpandedId] = useState<number | null>(null)
+  const [openId, setOpenId] = useState<number | null>(null)
 
-  // Nav already hides this link for non-ADMIN roles; guard here too so a
-  // stale/forced navigation can't render payroll data to the wrong role.
-  if (actor.role !== 'ADMIN') {
-    return <p className="access-denied">Payroll is restricted to administrators.</p>
-  }
+  // The router keeps other roles out; this guard keeps pay data safe if it ever renders anyway.
+  if (actor.role !== 'ADMIN') return null
 
   const vm = payrollVm(engine)
 
   return (
-    <section className="payroll">
+    <section className="page" aria-labelledby="staff-title">
+      <header className="page-head">
+        <h1 id="staff-title">Staff and pay</h1>
+        <p>
+          This month’s pay for everyone on the roster. Each kind of staff member has its own pay rules (a doctor’s
+          specialty allowance, a nurse’s ICU and night-shift pay, and so on). Open a row to see the rule-by-rule
+          breakdown.
+        </p>
+      </header>
+
       {vm.rows.length === 0 ? (
-        <p>No staff on record.</p>
+        <p className="empty">No staff on the roster.</p>
       ) : (
-        <div className="table-scroll">
-          <table className="payroll-table">
+        <div className="table-wrap">
+          <table className="ledger ledger--staff">
             <thead>
               <tr>
-                <th>Name</th>
-                <th>Role</th>
-                <th>Department</th>
-                <th className="num">Base</th>
-                <th className="num">Monthly pay</th>
+                <th scope="col">Name</th>
+                <th scope="col">Role</th>
+                <th scope="col">Department</th>
+                <th scope="col" className="ledger__num">
+                  This month
+                </th>
               </tr>
             </thead>
             <tbody>
-              {vm.rows.map((row) => (
-                <Fragment key={row.member.id}>
-                  <tr
-                    className="payroll-row"
-                    onClick={() => setExpandedId((id) => (id === row.member.id ? null : row.member.id))}
-                  >
-                    <td className="cell-strong">{row.member.name}</td>
-                    <td>{row.roleLabel}</td>
-                    <td>{row.member.department}</td>
-                    <td className="num">{formatINR(row.member.basePaise)}</td>
-                    <td className="num">{formatINR(row.monthlyPaise)}</td>
-                  </tr>
-                  {expandedId === row.member.id && (
-                    <tr className="payroll-breakdown-row">
-                      <td colSpan={5}>
-                        <ul className="payroll-breakdown">
-                          {row.breakdown.map((line, i) => (
-                            <li key={i}>
-                              <span>{line.label}</span>
-                              <span className="num">{formatINR(line.amountPaise)}</span>
-                            </li>
-                          ))}
-                          <li className="payroll-breakdown-sum">
-                            <span>Total</span>
-                            <span className="num">{formatINR(row.monthlyPaise)}</span>
-                          </li>
-                        </ul>
+              {vm.rows.map((row) => {
+                const open = openId === row.member.id
+                return (
+                  <Fragment key={row.member.id}>
+                    <tr className={open ? 'is-open' : undefined} onClick={() => setOpenId(open ? null : row.member.id)}>
+                      <td>
+                        <button
+                          type="button"
+                          className="ledger__who ledger__who--expand"
+                          aria-expanded={open}
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            setOpenId(open ? null : row.member.id)
+                          }}
+                        >
+                          <Icon name="chevron" size={16} className="ledger__chev" />
+                          <strong>{row.member.name}</strong>
+                        </button>
                       </td>
+                      <td>{titleCase(row.roleLabel)}</td>
+                      <td>{row.member.department}</td>
+                      <td className="ledger__num num">{formatINR(row.monthlyPaise)}</td>
                     </tr>
-                  )}
-                </Fragment>
-              ))}
+                    {open && (
+                      <tr className="ledger__detail">
+                        <td colSpan={4}>
+                          <dl className="paylines">
+                            {row.breakdown.map((line, i) => (
+                              <div key={i}>
+                                <dt>{line.label}</dt>
+                                <dd className="num">{formatINR(line.amountPaise)}</dd>
+                              </div>
+                            ))}
+                            <div className="paylines__total">
+                              <dt>Total</dt>
+                              <dd className="num">{formatINR(row.monthlyPaise)}</dd>
+                            </div>
+                          </dl>
+                        </td>
+                      </tr>
+                    )}
+                  </Fragment>
+                )
+              })}
             </tbody>
             <tfoot>
-              <tr className="payroll-total-row">
-                <td colSpan={4}>Payroll total</td>
-                <td className="num">{formatINR(vm.totalPaise)}</td>
+              <tr>
+                <th scope="row" colSpan={3}>
+                  Everyone, this month
+                </th>
+                <td className="ledger__num num">{formatINR(vm.totalPaise)}</td>
               </tr>
             </tfoot>
           </table>

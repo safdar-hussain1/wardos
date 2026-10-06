@@ -1,66 +1,71 @@
 import type { ComputedInvoice } from '../../core/billing'
 import { formatINR, formatDateTimeIST } from '../format'
+import { CHARGE_KIND_LABELS } from '../labels'
+import { Icon } from '../icons'
 
 /**
- * Shared itemization view: nights/room total, charge lines, extras, deposit,
- * balance-or-refund. Used by PatientChart's discharged-invoice section and
- * by BillingDesk for both a live active-admission preview and a frozen
- * discharged invoice — one rendering, no duplicated JSX.
+ * One bill, laid out like the printed slip a patient takes home: the room
+ * (nights times the nightly rate), each extra charge, the deposit taken off,
+ * and what is left to pay or to give back. The same view serves a running
+ * bill (still changing) and an issued one (final, once the patient leaves).
+ * Every amount here comes from the engine; this view does no arithmetic.
  */
 export default function InvoiceDetail({
   invoice,
   issuedAt,
-  frozen = false,
+  final = false,
 }: {
   invoice: ComputedInvoice
-  /** Present only for an issued (discharged) invoice. */
+  /** Present only for an issued (discharged) bill. */
   issuedAt?: string
-  /** True once the admission has been discharged — the amounts can no longer change. */
-  frozen?: boolean
+  /** True once the patient has been discharged: the amounts can no longer change. */
+  final?: boolean
 }) {
+  const nights = `${invoice.nights} night${invoice.nights === 1 ? '' : 's'}`
   return (
-    <div className="invoice-detail">
-      {frozen && <p className="frozen-badge">Frozen</p>}
-      <div className="inv-row">
-        <span className="inv-row__label">
-          Room · {invoice.nights} night{invoice.nights === 1 ? '' : 's'} × {formatINR(invoice.roomRatePaise)}
-        </span>
-        <span className="inv-row__amount">{formatINR(invoice.roomTotalPaise)}</span>
-      </div>
-      {invoice.lines.length === 0 ? (
-        <p className="inv-empty">No extra charges.</p>
-      ) : (
-        <ul className="charge-list">
-          {invoice.lines.map((line, i) => (
-            <li key={i} className="inv-row">
-              <span className="inv-row__label">
-                <span className="charge-kind">{line.kind}</span> {line.description}
-              </span>
-              <span className="inv-row__amount">{formatINR(line.amountPaise)}</span>
-            </li>
-          ))}
-        </ul>
-      )}
-      <div className="inv-row inv-row--rule">
-        <span className="inv-row__label">Extras total</span>
-        <span className="inv-row__amount">{formatINR(invoice.extrasTotalPaise)}</span>
-      </div>
-      <div className="inv-row">
-        <span className="inv-row__label">Deposit</span>
-        <span className="inv-row__amount">− {formatINR(invoice.depositPaise)}</span>
-      </div>
-      {invoice.isRefund ? (
-        <div className="inv-row inv-row--total refund-due">
-          <span className="inv-row__label">Refund due</span>
-          <span className="inv-row__amount">{formatINR(invoice.refundPaise)}</span>
+    <div className={`receipt${final ? ' receipt--final' : ''}`}>
+      <p className="receipt__status">
+        {final ? (
+          <>
+            <Icon name="lock" size={16} /> Final bill{issuedAt !== undefined ? `, issued ${formatDateTimeIST(issuedAt)}` : ''}
+          </>
+        ) : (
+          <>
+            <span className="live-dot" aria-hidden="true" /> Running bill, as of now
+          </>
+        )}
+      </p>
+      <dl className="receipt__lines">
+        <div className="receipt__row">
+          <dt>
+            Room, {nights} at {formatINR(invoice.roomRatePaise)}
+          </dt>
+          <dd className="num">{formatINR(invoice.roomTotalPaise)}</dd>
         </div>
-      ) : (
-        <div className="inv-row inv-row--total balance-due">
-          <span className="inv-row__label">Balance due</span>
-          <span className="inv-row__amount">{formatINR(invoice.balancePaise)}</span>
+        {invoice.lines.map((line, i) => (
+          <div className="receipt__row" key={i}>
+            <dt>
+              {line.description}
+              <span className="receipt__kind">{CHARGE_KIND_LABELS[line.kind] ?? line.kind}</span>
+            </dt>
+            <dd className="num">{formatINR(line.amountPaise)}</dd>
+          </div>
+        ))}
+        {invoice.lines.length === 0 && (
+          <div className="receipt__row receipt__row--empty">
+            <dt>No extra charges yet</dt>
+            <dd />
+          </div>
+        )}
+        <div className="receipt__row receipt__row--sub">
+          <dt>Deposit paid</dt>
+          <dd className="num">− {formatINR(invoice.depositPaise)}</dd>
         </div>
-      )}
-      {issuedAt !== undefined && <p className="issued-at">Issued {formatDateTimeIST(issuedAt)}</p>}
+      </dl>
+      <div className={`receipt__total ${invoice.isRefund ? 'receipt__total--refund' : 'receipt__total--due'}`}>
+        <span>{invoice.isRefund ? (final ? 'Refund to the patient' : 'Refund if they left now') : final ? 'Left to pay' : 'Left to pay if they left now'}</span>
+        <strong className="num">{formatINR(invoice.isRefund ? invoice.refundPaise : invoice.balancePaise)}</strong>
+      </div>
     </div>
   )
 }
