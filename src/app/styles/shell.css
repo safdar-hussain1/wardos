@@ -450,6 +450,8 @@
   border: 2px solid var(--signal);
   border-right-color: transparent;
   animation: spin 900ms linear infinite;
+  /* still visibly working with reduced motion, just slower */
+  --animation-reduced: spin 2.4s linear infinite;
 }
 
 @keyframes spin {

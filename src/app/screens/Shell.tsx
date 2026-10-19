@@ -185,7 +185,17 @@ function ThemeToggle() {
   const next = theme === 'dark' ? 'light' : 'dark'
   const label = next === 'dark' ? 'Switch to night shift (dark theme)' : 'Switch to day shift (light theme)'
   return (
-    <button type="button" className="icon-button" onClick={() => setTheme(next)} aria-label={label} title={label}>
+    <button
+      type="button"
+      className="icon-button"
+      onClick={(e) => {
+        // the new theme spreads out from the middle of this button, however it was pressed
+        const r = e.currentTarget.getBoundingClientRect()
+        setTheme(next, { x: r.left + r.width / 2, y: r.top + r.height / 2 })
+      }}
+      aria-label={label}
+      title={label}
+    >
       <Icon name={theme === 'dark' ? 'sun' : 'moon'} />
     </button>
   )

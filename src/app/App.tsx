@@ -1,4 +1,5 @@
-import { useEffect, useLayoutEffect, useSyncExternalStore } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } from 'react'
+import type { ReactNode } from 'react'
 import { store } from './store'
 import type { Actor } from '../core/engine'
 import type { Role } from '../core/permissions'
@@ -12,7 +13,7 @@ import Payroll from './screens/Payroll'
 import Ambulances from './screens/Ambulances'
 import AuditTrail from './screens/AuditTrail'
 import Measurements from './screens/Measurements'
-import { useHashRoute } from './hooks'
+import { isRenderingViewTransition, useHashRoute } from './hooks'
 import { HOW_IT_WORKS_ANCHOR, isHowItWorksHash, routeDef, routeFromKey, whoCan } from './routes'
 import type { RouteKey } from './routes'
 import { preferredRole, setPreferredRole, signInAs, subscribePreferredRole, switchRole } from './session'
@@ -75,6 +76,20 @@ export function BootScreen() {
   )
 }
 
+/** The view on screen: its name, or its locked stand-in for a role that may not open it. */
+function viewKeyFor(route: RouteKey, role: Role): string {
+  return routeDef(route).allowed(role) ? route : `${route}-locked`
+}
+
+/**
+ * One view. It fades in when it arrives, unless a view transition put it on
+ * the page: the browser is cross-fading to it already.
+ */
+function View({ children }: { children: ReactNode }) {
+  const [crossFaded] = useState(isRenderingViewTransition)
+  return <div className={crossFaded ? 'view view--cross-faded' : 'view'}>{children}</div>
+}
+
 function LockedView({ route, actor }: { route: RouteKey; actor: Actor }) {
   const def = routeDef(route)
   const allowed = ROLE_ORDER.filter((r) => def.allowed(r))
@@ -133,6 +148,20 @@ export default function App() {
     }
   }, [hash, state.status])
 
+  const viewKey = state.status === 'ready' && state.actor ? viewKeyFor(route, state.actor.role) : null
+
+  // When the control that changed the view left with the old one (a link
+  // inside it, a "Switch to" button on a locked view), focus would be dropped
+  // on the page; it goes to the start of the new view instead.
+  const shownView = useRef<string | null>(null)
+  useLayoutEffect(() => {
+    const before = shownView.current
+    shownView.current = viewKey
+    if (before === null || viewKey === null || before === viewKey) return
+    const focused = document.activeElement
+    if (focused === null || focused === document.body) document.getElementById('main')?.focus({ preventScroll: true })
+  }, [viewKey])
+
   if (state.status === 'booting' || (state.status === 'login' && state.engine && preferred !== null && !state.error)) {
     return <BootScreen />
   }
@@ -146,8 +175,8 @@ export default function App() {
 
   return (
     <Shell actor={actor} route={route}>
-      {/* keyed by view, so moving between views fades the new one in */}
-      <div className="view" key={allowed ? route : `${route}-locked`}>
+      {/* keyed by view, so each view starts afresh */}
+      <View key={viewKeyFor(route, actor.role)}>
         {!allowed && <LockedView route={route} actor={actor} />}
         {allowed && route === 'hospital' && <Hospital engine={engine} actor={actor} />}
         {allowed && route === 'bills' && <BillingDesk engine={engine} actor={actor} />}
@@ -155,7 +184,7 @@ export default function App() {
         {allowed && route === 'staff' && <Payroll engine={engine} actor={actor} />}
         {allowed && route === 'event-log' && <AuditTrail engine={engine} actor={actor} />}
         {allowed && route === 'measurements' && <Measurements />}
-      </div>
+      </View>
     </Shell>
   )
 }

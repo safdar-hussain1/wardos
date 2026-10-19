@@ -4,6 +4,7 @@ import { planLayout } from './layout'
 import type { BedBox, PlanLayout, Variant, WardKey } from './layout'
 import { WARD_LABELS, WARD_TOKENS } from '../labels'
 import { formatDateIST } from '../format'
+import { prefersReducedMotion } from '../motion'
 
 /** The order the wards come in when the page arrives: the north wing, then the south. */
 const WARD_ARRIVAL = ['GENERAL', 'ICU', 'TWIN', 'PRIVATE']
@@ -294,7 +295,8 @@ export default function FloorPlan({
 
   // A ripple marks each bed a visitor's own action just changed (admit,
   // discharge, move). Scrubbing through history changes many beds at once
-  // and shows none; a single action changes one or two.
+  // and shows none; a single action changes one or two. With reduced motion
+  // there is no ripple (it would never finish, so never be removed).
   const lastSeen = useRef<{ live: boolean; occupied: Map<number, boolean> } | null>(null)
   const [ripples, setRipples] = useState<{ id: number; key: string }[]>([])
   const occupancyKey = beds.map((b) => (b.occupied ? 1 : 0)).join('')
@@ -304,7 +306,7 @@ export default function FloorPlan({
     lastSeen.current = { live: interactive, occupied }
     if (!before || !before.live || !interactive) return
     const changed = beds.filter((b) => before.occupied.get(b.id) !== b.occupied)
-    if (changed.length === 0 || changed.length > 3) return
+    if (changed.length === 0 || changed.length > 3 || prefersReducedMotion()) return
     setRipples((r) => [...r, ...changed.map((b) => ({ id: b.id, key: `${b.id}-${occupancyKey}` }))])
     // `beds` is new on every render; the occupancy string is what matters.
   }, [occupancyKey, interactive])

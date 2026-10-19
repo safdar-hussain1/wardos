@@ -403,7 +403,7 @@ export default function Hospital({ engine, actor }: { engine: Engine; actor: Act
             change.
           </p>
           <InvoiceDetail invoice={drawer.invoice} issuedAt={ANCHOR_ISO} final />
-          <button type="button" className="button button--block" onClick={() => setDrawer(null)} data-autofocus>
+          <button type="button" className="button button--block" data-close data-autofocus>
             Back to the floor plan
           </button>
         </Drawer>

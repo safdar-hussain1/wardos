@@ -529,34 +529,67 @@
 
 /* -- the drawer ------------------------------------------------------------------- */
 
-.drawer-layer {
-  position: fixed;
-  inset: 0;
-  z-index: 60;
-}
-
-.drawer-backdrop {
-  position: absolute;
-  inset: 0;
-  background: rgba(10, 18, 34, 0.42);
-  animation: fade-in 220ms var(--ease-out);
-}
-
-[data-theme='dark'] .drawer-backdrop {
-  background: rgba(2, 6, 14, 0.62);
-}
-
+/* A modal <dialog> in the top layer. These rules replace the browser's
+   centred box with a full-height panel on the right. It is off-screen while
+   closed and while closing; @starting-style gives the entry its first frame,
+   and [data-closing] (set just before the panel is removed) plays the exit. */
 .drawer {
-  position: absolute;
-  top: 0;
-  right: 0;
-  bottom: 0;
+  position: fixed;
+  inset: 0 0 0 auto;
+  width: min(480px, 100vw);
+  max-width: none;
+  height: 100%;
+  max-height: none;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: var(--paper);
+  color: var(--ink);
+  box-shadow: var(--shadow-pop);
+  overflow: hidden;
+  /* a scroll that reaches the end of the panel stops there instead of moving the page */
+  overscroll-behavior: contain;
+  translate: 100% 0;
+  transition: translate 320ms var(--ease-out);
+  --transition-reduced: opacity 160ms linear;
+}
+
+.drawer[open] {
   display: flex;
   flex-direction: column;
-  width: min(480px, 100vw);
-  background: var(--paper);
-  box-shadow: var(--shadow-pop);
-  animation: drawer-in 320ms var(--ease-out);
+}
+
+.drawer:is([open]):where(:not([data-closing])) {
+  translate: 0 0;
+}
+
+@starting-style {
+  .drawer[open] {
+    translate: 100% 0;
+  }
+}
+
+.drawer::backdrop {
+  background-color: transparent;
+  /* a scroll container, so overscroll-behavior applies: a wheel or swipe over the backdrop leaves the page where it is */
+  overflow: hidden;
+  overscroll-behavior: contain;
+  transition: background-color 320ms var(--ease-out);
+}
+
+.drawer:is([open]):where(:not([data-closing]))::backdrop {
+  background-color: rgba(10, 18, 34, 0.42);
+}
+
+[data-theme='dark'] .drawer:is([open]):where(:not([data-closing]))::backdrop {
+  background-color: rgba(2, 6, 14, 0.62);
+}
+
+@starting-style {
+  .drawer[open]::backdrop,
+  [data-theme='dark'] .drawer[open]::backdrop {
+    background-color: transparent;
+  }
 }
 
 .drawer__head {
@@ -601,27 +634,27 @@
   overscroll-behavior: contain;
 }
 
-@keyframes drawer-in {
-  from {
-    transform: translateX(28px);
-    opacity: 0;
-  }
-}
-
 @keyframes fade-in {
   from {
     opacity: 0;
   }
 }
 
+/* on a phone the panel is a sheet that rises from the bottom edge */
 @media (max-width: 640px) {
   .drawer {
-    top: auto;
-    left: 0;
+    inset: auto 0 0 0;
     width: 100%;
+    height: auto;
     max-height: 92vh;
     border-radius: 20px 20px 0 0;
-    animation-name: sheet-in;
+    translate: 0 100%;
+  }
+
+  @starting-style {
+    .drawer[open] {
+      translate: 0 100%;
+    }
   }
 
   .drawer__head {
@@ -637,10 +670,22 @@
   }
 }
 
-@keyframes sheet-in {
-  from {
-    transform: translateY(40px);
+/* with reduced motion the panel fades in and out where it stands */
+@media (prefers-reduced-motion: reduce) {
+  .drawer {
+    translate: none;
     opacity: 0;
+  }
+
+  .drawer:is([open]):where(:not([data-closing])) {
+    opacity: 1;
+  }
+
+  @starting-style {
+    .drawer[open] {
+      translate: none;
+      opacity: 0;
+    }
   }
 }
 
@@ -988,14 +1033,71 @@
   box-shadow: inset 0 0 0 1px var(--line);
 }
 
-/* moving between views: the new one fades in (opacity only, so a fixed drawer inside never shifts) */
+/* -- moving between views ----------------------------------------------------------------- */
+
+/* Where the browser has view transitions, a change of view runs inside one
+   (hooks.ts): the old view cross-fades into the new, and the "you are here"
+   tab slides along to its new place. A view arriving any other way (the first
+   one, or the same view opening up for a new role) fades in by itself. */
 .view {
   animation: view-in 260ms var(--ease-out) both;
+}
+
+.view--cross-faded {
+  animation: none;
 }
 
 @keyframes view-in {
   from {
     opacity: 0;
+  }
+}
+
+::view-transition-group(*) {
+  animation-duration: 300ms;
+  animation-timing-function: var(--ease-out);
+}
+
+.navlink--top.is-current {
+  view-transition-name: nav-current;
+}
+
+.navlink--tabs.is-current {
+  view-transition-name: tab-current;
+}
+
+/* the old and new tab differ in width; fill the moving box rather than letterbox inside it */
+::view-transition-old(nav-current),
+::view-transition-new(nav-current),
+::view-transition-old(tab-current),
+::view-transition-new(tab-current) {
+  height: 100%;
+}
+
+/* Switching between day and night shift: the new theme spreads out in a
+   circle from the switch (hooks.ts animates the clip), so nothing in the
+   page may fade colours on its own while it does. */
+.theme-shift::view-transition-old(root),
+.theme-shift::view-transition-new(root) {
+  animation: none;
+  mix-blend-mode: normal;
+}
+
+.theme-shift .navlink.is-current {
+  view-transition-name: none;
+}
+
+.theme-shift *,
+.theme-shift *::before,
+.theme-shift *::after {
+  transition: none !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  ::view-transition-group(*),
+  ::view-transition-old(*),
+  ::view-transition-new(*) {
+    animation: none !important;
   }
 }
 

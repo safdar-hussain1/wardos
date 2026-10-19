@@ -282,13 +282,27 @@ svg {
   font-variant-numeric: tabular-nums;
 }
 
+/* Reduced motion: no animation or transition plays unless the element names a
+   gentler version of its own in --animation-reduced or --transition-reduced
+   (the drawer swaps its slide for a short fade, say). Every animated element's
+   resting style is its finished state, so switching motion off hides nothing. */
+@property --animation-reduced {
+  syntax: '*';
+  inherits: false;
+  initial-value: none;
+}
+
+@property --transition-reduced {
+  syntax: '*';
+  inherits: false;
+  initial-value: none;
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
   *::after {
-    animation-duration: 1ms !important;
-    animation-iteration-count: 1 !important;
-    transition-duration: 1ms !important;
-    scroll-behavior: auto !important;
+    animation: var(--animation-reduced) !important;
+    transition: var(--transition-reduced) !important;
   }
 }
