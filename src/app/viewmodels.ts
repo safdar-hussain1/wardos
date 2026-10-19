@@ -1,4 +1,4 @@
-import type { BedView, Engine, Actor, CensusView } from '../core/engine'
+import type { Engine, Actor, CensusView } from '../core/engine'
 import type { ComputedInvoice, InvoiceLine, ChargeKind } from '../core/billing'
 import type { Paise } from '../core/money'
 import { addP } from '../core/money'
@@ -13,35 +13,10 @@ import { formatINR } from '../core/money'
 import { DIAGNOSES, FAMILY_NAMES, FEMALE_GIVEN_NAMES, MALE_GIVEN_NAMES } from '../seed/names'
 
 /**
- * The hospital's four wards, in the fixed display order the ward board
- * always renders them — mirrors src/seed/facility.ts's WARD_LAYOUT.
+ * The hospital's four wards, in the fixed order every view lists them —
+ * mirrors src/seed/facility.ts's WARD_CONFIG.
  */
 export const WARD_ORDER = ['GENERAL', 'TWIN', 'PRIVATE', 'ICU'] as const
-
-export interface WardGroup {
-  ward: (typeof WARD_ORDER)[number]
-  beds: BedView[]
-  freeCount: number
-  occupiedCount: number
-}
-
-/**
- * Pure view-model builder for the ward board: groups every bed into its
- * ward, in WARD_ORDER, with per-ward free/occupied counts. A ward with no
- * beds still appears (empty group) — the board always shows all four.
- */
-export function bedGrid(beds: BedView[]): WardGroup[] {
-  return WARD_ORDER.map((ward) => {
-    const wardBeds = beds.filter((b) => b.ward === ward)
-    const occupiedCount = wardBeds.filter((b) => b.occupied).length
-    return {
-      ward,
-      beds: wardBeds,
-      freeCount: wardBeds.length - occupiedCount,
-      occupiedCount,
-    }
-  })
-}
 
 export interface ChartPermittedActions {
   addCharge: boolean
@@ -309,7 +284,7 @@ export function auditPageVm(
 }
 
 // ---------------------------------------------------------------------
-// deckVm — command deck
+// deckVm — the live totals (the Bills view's summary line)
 // ---------------------------------------------------------------------
 
 // Fixed aggregation order — matches the `kind` CHECK constraint on the
@@ -342,13 +317,13 @@ export interface DeckVm {
 }
 
 /**
- * Pure view-model builder for the command deck: census, per-ward occupancy,
+ * Pure view-model builder for the live totals: census, per-ward occupancy,
  * revenue-by-kind, outstanding balance, refund count, and the last 10
  * events — every figure read live off `engine` at render time via existing
  * Engine queries only (`census`, `beds`, `admissionsDischarged`,
  * `invoiceFor`, `eventsLog`), never `src/app/data/summary.json` (that file
- * is a frozen snapshot for the static Results page — see `About.tsx` —
- * while this screen always reflects the live db, including any demo
+ * is a frozen snapshot for the Measurements view — see `Measurements.tsx` —
+ * while these totals always reflect the live db, including any demo
  * mutation the current session has made).
  *
  * Revenue-by-kind and outstanding mirror the CLI's `revenueByChargeKind`/
@@ -438,7 +413,7 @@ export interface TimeMachineVm {
  * core/replay.ts's own doc comment: "Never touches a Db") — this function
  * adds no i/o of its own on top of it. Callers are expected to fetch
  * `events`/`beds` once (e.g. `engine.eventsLog()` / `engine.beds()` when
- * the time-machine screen mounts) and then scrub purely by calling this
+ * the Hospital view mounts) and then scrub purely by calling this
  * function repeatedly with a different `uptoIso` — see
  * tests/app-logic.test.ts's poisoned-Db-facade test, which reassigns a real
  * `Db`'s run/all/get to throw *after* that one fetch and then scrubs

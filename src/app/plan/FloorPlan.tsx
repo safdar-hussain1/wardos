@@ -1,9 +1,12 @@
-import { useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import type { KeyboardEvent } from 'react'
 import { planLayout } from './layout'
 import type { BedBox, PlanLayout, Variant, WardKey } from './layout'
 import { WARD_LABELS, WARD_TOKENS } from '../labels'
 import { formatDateIST } from '../format'
+
+/** The order the wards come in when the page arrives: the north wing, then the south. */
+const WARD_ARRIVAL = ['GENERAL', 'ICU', 'TWIN', 'PRIVATE']
 
 export interface PlanBed {
   id: number
@@ -58,17 +61,27 @@ function Bed({
   bed,
   interactive,
   selected,
-  index,
+  tabStop,
+  wardIndex,
+  indexInWard,
   onSelect,
   onHover,
+  onMove,
+  onFocusBed,
 }: {
   box: BedBox
   bed: PlanBed
   interactive: boolean
   selected: boolean
-  index: number
+  /** The one bed the Tab key reaches; the arrow keys move between the rest. */
+  tabStop: boolean
+  /** Position of the bed's ward in the arrival order, and of the bed within its ward. */
+  wardIndex: number
+  indexInWard: number
   onSelect: (bed: PlanBed) => void
   onHover: (id: number | null) => void
+  onMove: (from: number, key: string) => void
+  onFocusBed: (id: number) => void
 }) {
   const { x, y, w, h, head } = box
   const pillowH = Math.round(h * 0.2)
@@ -84,6 +97,9 @@ function Bed({
     if (e.key === 'Enter' || e.key === ' ') {
       e.preventDefault()
       onSelect(bed)
+    } else if (['ArrowRight', 'ArrowDown', 'ArrowLeft', 'ArrowUp', 'Home', 'End'].includes(e.key)) {
+      e.preventDefault()
+      onMove(bed.id, e.key)
     }
   }
 
@@ -93,18 +109,25 @@ function Bed({
   // user says what the control shows ("G-01"), and the full name is in the
   // accessible label already.
   return (
-    <g className="bedwrap" transform={`translate(${x} ${y})`} style={{ ['--i' as string]: index }}>
+    <g
+      className="bedwrap"
+      transform={`translate(${x} ${y})`}
+      style={{ ['--w' as string]: wardIndex, ['--j' as string]: indexInWard }}
+    >
       <g
         className={`bed ${state}`}
-        role={interactive ? 'button' : undefined}
-        tabIndex={interactive ? 0 : undefined}
-        aria-label={interactive ? bedSentence(bed, true) : undefined}
-        aria-pressed={interactive ? selected : undefined}
+        role={interactive ? 'button' : 'img'}
+        tabIndex={interactive ? (tabStop ? 0 : -1) : undefined}
+        aria-label={bedSentence(bed, interactive)}
+        aria-haspopup={interactive ? 'dialog' : undefined}
         onClick={interactive ? () => onSelect(bed) : undefined}
         onKeyDown={interactive ? onKeyDown : undefined}
         onPointerEnter={() => onHover(bed.id)}
         onPointerLeave={() => onHover(null)}
-        onFocus={() => onHover(bed.id)}
+        onFocus={() => {
+          onHover(bed.id)
+          onFocusBed(bed.id)
+        }}
         onBlur={() => onHover(null)}
         data-bed={bed.label}
       >
@@ -221,10 +244,13 @@ export default function FloorPlan({
   onSelectBed,
   onSelectAmbulance,
   label,
+  intro = false,
 }: {
   beds: PlanBed[]
   ambulances: PlanAmbulance[]
   variant: Variant
+  /** True during the page's arrival: walls draw, floor lines paint, beds and blankets come in by ward. */
+  intro?: boolean
   interactive: boolean
   selectedBedId: number | null
   onSelectBed: (bed: PlanBed) => void
@@ -236,18 +262,66 @@ export default function FloorPlan({
   const layout: PlanLayout = planLayout(beds, variant)
   const bedById = useMemo(() => new Map(beds.map((b) => [b.id, b])), [beds])
   const [hoverId, setHoverId] = useState<number | null>(null)
-  const wrapRef = useRef<HTMLDivElement | null>(null)
+  const svgRef = useRef<SVGSVGElement | null>(null)
+  // One Tab stop for the whole plan: the selected bed, else the last one
+  // focused, else the first. The arrow keys, Home and End move between beds.
+  const [focusId, setFocusId] = useState<number | null>(null)
+  const tabStopId =
+    (selectedBedId !== null && bedById.has(selectedBedId) ? selectedBedId : null) ??
+    (focusId !== null && bedById.has(focusId) ? focusId : null) ??
+    layout.beds[0]?.id ??
+    null
+
+  function moveFocus(from: number, key: string): void {
+    const order = layout.beds.map((b) => b.id)
+    const at = order.indexOf(from)
+    const next =
+      key === 'Home'
+        ? 0
+        : key === 'End'
+          ? order.length - 1
+          : key === 'ArrowRight' || key === 'ArrowDown'
+            ? Math.min(order.length - 1, at + 1)
+            : Math.max(0, at - 1)
+    const box = layout.beds[next]
+    if (!box) return
+    setFocusId(box.id)
+    svgRef.current?.querySelector<SVGGElement>(`[data-bed="${box.label}"]`)?.focus()
+  }
 
   const hovered = hoverId === null ? undefined : layout.beds.find((b) => b.id === hoverId)
   const hoveredBed = hoverId === null ? undefined : bedById.get(hoverId)
 
+  // A ripple marks each bed a visitor's own action just changed (admit,
+  // discharge, move). Scrubbing through history changes many beds at once
+  // and shows none; a single action changes one or two.
+  const lastSeen = useRef<{ live: boolean; occupied: Map<number, boolean> } | null>(null)
+  const [ripples, setRipples] = useState<{ id: number; key: string }[]>([])
+  const occupancyKey = beds.map((b) => (b.occupied ? 1 : 0)).join('')
+  useEffect(() => {
+    const occupied = new Map(beds.map((b) => [b.id, b.occupied]))
+    const before = lastSeen.current
+    lastSeen.current = { live: interactive, occupied }
+    if (!before || !before.live || !interactive) return
+    const changed = beds.filter((b) => before.occupied.get(b.id) !== b.occupied)
+    if (changed.length === 0 || changed.length > 3) return
+    setRipples((r) => [...r, ...changed.map((b) => ({ id: b.id, key: `${b.id}-${occupancyKey}` }))])
+    // `beds` is new on every render; the occupancy string is what matters.
+  }, [occupancyKey, interactive])
+
+  const wardOrderOf = (ward: string) => Math.max(0, WARD_ARRIVAL.indexOf(ward))
+  const seenInWard = new Map<string, number>()
+
   return (
-    <div className={`plan plan--${variant}${interactive ? ' plan--live' : ' plan--history'}`} ref={wrapRef}>
+    <div
+      className={`plan plan--${variant}${interactive ? ' plan--live' : ' plan--history'}${intro ? ' plan--intro' : ''}`}
+    >
       <svg
         className="plan__svg"
         viewBox={`0 0 ${layout.width} ${layout.height}`}
         role="group"
-        aria-label={label}
+        aria-label={interactive ? `${label} Use the arrow keys to move between beds.` : label}
+        ref={svgRef}
       >
         <defs>
           <pattern id={`hatch-${variant}`} width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
@@ -301,10 +375,10 @@ export default function FloorPlan({
 
         <g className="plan__walls" aria-hidden="true">
           {layout.walls.map(([x1, y1, x2, y2], i) => (
-            <line key={i} className="plan__wall" x1={x1} y1={y1} x2={x2} y2={y2} />
+            <line key={i} className="plan__wall" x1={x1} y1={y1} x2={x2} y2={y2} pathLength={1} />
           ))}
           {layout.outerWalls.map(([x1, y1, x2, y2], i) => (
-            <line key={i} className="plan__wall plan__wall--outer" x1={x1} y1={y1} x2={x2} y2={y2} />
+            <line key={i} className="plan__wall plan__wall--outer" x1={x1} y1={y1} x2={x2} y2={y2} pathLength={1} />
           ))}
         </g>
 
@@ -326,19 +400,42 @@ export default function FloorPlan({
         </g>
 
         <g className="plan__beds">
-          {layout.beds.map((box, i) => {
+          {layout.beds.map((box) => {
             const bed = bedById.get(box.id)
             if (!bed) return null
+            const indexInWard = seenInWard.get(box.ward) ?? 0
+            seenInWard.set(box.ward, indexInWard + 1)
             return (
               <Bed
                 key={box.id}
                 box={box}
                 bed={bed}
-                index={i}
+                wardIndex={wardOrderOf(box.ward)}
+                indexInWard={indexInWard}
                 interactive={interactive}
                 selected={selectedBedId === box.id}
+                tabStop={tabStopId === box.id}
                 onSelect={onSelectBed}
                 onHover={setHoverId}
+                onMove={moveFocus}
+                onFocusBed={setFocusId}
+              />
+            )
+          })}
+        </g>
+
+        <g className="plan__ripples" aria-hidden="true">
+          {ripples.map((r) => {
+            const box = layout.beds.find((b) => b.id === r.id)
+            if (!box) return null
+            return (
+              <circle
+                key={r.key}
+                className={`ripple ripple--${WARD_TOKENS[box.ward] ?? 'general'}`}
+                cx={box.x + box.w / 2}
+                cy={box.y + box.h / 2}
+                r={box.h / 2}
+                onAnimationEnd={() => setRipples((all) => all.filter((x) => x.key !== r.key))}
               />
             )
           })}

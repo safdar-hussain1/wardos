@@ -89,8 +89,10 @@ export interface ReplayCheckResult {
 }
 
 /**
- * Replays the hospital from nothing but the event log and compares it,
- * table by table and field by field, with the live database.
+ * Replays the hospital's six record tables (patients, admissions, charges,
+ * invoices, dispatches, staff) from nothing but the event log and compares
+ * them field by field with the live database. Logins are not replayed
+ * (passwords never enter the log); beds and ambulances are fixed layout.
  */
 export function replayCheck(engine: Engine, now: () => number = () => performance.now()): ReplayCheckResult {
   const started = now()

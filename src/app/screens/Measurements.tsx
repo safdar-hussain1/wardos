@@ -1,8 +1,10 @@
 import benchmarkJson from '../data/benchmark.json'
 import summaryJson from '../data/summary.json'
-import { formatINR, formatDateIST } from '../format'
+import { formatINR, formatDateIST, formatDateTimeIST } from '../format'
 import { CHARGE_KIND_LABELS, WARD_LABELS, WARD_TOKENS } from '../labels'
 import type { ChargeKind } from '../../core/billing'
+import { ANCHOR_ISO } from '../../core/clock'
+import { WARD_ORDER } from '../viewmodels'
 
 interface Benchmark {
   commands: number
@@ -49,10 +51,10 @@ const CLAIMS: { claim: string; enforcedBy: string; testedBy: string }[] = [
     testedBy: 'A raw SQL insert that goes around the engine, onto an occupied bed, must fail with a constraint error.',
   },
   {
-    claim: 'The event log is enough: replaying it gives back the exact live state',
+    claim: 'The event log is enough: replaying it gives back every operational record exactly',
     enforcedBy: 'Every command appends one event in the same transaction as its change, before it commits.',
     testedBy:
-      'The full six-month log is replayed into a fresh projection and compared with the live database, table by table, id by id, field by field.',
+      'The full six-month log is replayed into a fresh projection of the six operational tables (patients, stays, charges, bills, ambulance calls, staff) and compared with the live database, id by id, field by field. Logins are left out on purpose: passwords never enter the log.',
   },
   {
     claim: 'An over-paid deposit becomes a refund, never a negative charge',
@@ -75,7 +77,7 @@ const CLAIMS: { claim: string; enforcedBy: string; testedBy: string }[] = [
 
 const NON_GOALS = [
   'One hospital on one device: not a multi-site or multi-user system.',
-  'The clock is fixed at 09:00 on 1 August 2026, so every figure is dated, not live.',
+  `The clock is fixed at ${formatDateTimeIST(ANCHOR_ISO)}, so every figure is dated, not live.`,
   'Accounts and roles are real in structure (hashed passwords, a permission check on every command) but scoped to this demo. They protect this session’s data, not a networked deployment.',
   'Storage is the browser’s own database, which the browser may clear under storage pressure. Resetting the demo always brings back a clean hospital.',
   'Not a medical device or clinical decision support. It manages beds, bills, pay and ambulances, not diagnoses or treatment.',
@@ -195,7 +197,7 @@ export default function Measurements() {
           <Stat label="In a bed" value={summary.census.active} />
           <Stat label="Beds free" value={`${summary.census.bedsFree} of ${summary.census.bedsTotal}`} />
           <Stat label="Still owed on final bills" value={formatINR(summary.outstandingPaise)} />
-          <Stat label="Refunds paid" value={summary.refundCount} />
+          <Stat label="Bills ending in a refund" value={summary.refundCount} />
         </dl>
 
         <div className="mtables">
@@ -217,7 +219,9 @@ export default function Measurements() {
                 </tr>
               </thead>
               <tbody>
-                {summary.occupancyByWard.map((w) => (
+                {[...summary.occupancyByWard]
+                  .sort((a, b) => WARD_ORDER.indexOf(a.ward as (typeof WARD_ORDER)[number]) - WARD_ORDER.indexOf(b.ward as (typeof WARD_ORDER)[number]))
+                  .map((w) => (
                   <tr key={w.ward}>
                     <th scope="row">
                       <span className={`dot dot--${WARD_TOKENS[w.ward] ?? 'general'}`} aria-hidden="true" />

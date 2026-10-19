@@ -1,5 +1,7 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
+import type { KeyboardEvent } from 'react'
 import type { Engine, Actor } from '../../core/engine'
+import { can } from '../../core/permissions'
 import type { ComputedInvoice } from '../../core/billing'
 import { addP } from '../../core/money'
 import { ANCHOR_ISO } from '../../core/clock'
@@ -22,7 +24,7 @@ function Outcome({ invoice, final }: { invoice: ComputedInvoice; final: boolean 
     return (
       <span className="outcome outcome--refund">
         <Icon name="arrow" size={14} className="outcome__icon outcome__icon--back" />
-        {final ? 'Refunded' : 'Refund'} {formatINR(invoice.refundPaise)}
+        {final ? 'Refund due' : 'Refund'} {formatINR(invoice.refundPaise)}
       </span>
     )
   }
@@ -38,6 +40,29 @@ function Outcome({ invoice, final }: { invoice: ComputedInvoice; final: boolean 
 export default function BillingDesk({ engine, actor }: { engine: Engine; actor: Actor }) {
   const [tab, setTab] = useState<Tab>('running')
   const [open, setOpen] = useState<Open | null>(null)
+  const runningTab = useRef<HTMLButtonElement | null>(null)
+  const finalTab = useRef<HTMLButtonElement | null>(null)
+
+  // The router keeps other roles out; this guard keeps bills private if it ever renders anyway.
+  if (!can(actor.role, 'VIEW_BILLING')) return null
+
+  /** Arrow keys, Home and End move between the two tabs, as a tab list should. */
+  function onTabKey(e: KeyboardEvent<HTMLDivElement>): void {
+    const next: Tab | null =
+      e.key === 'ArrowRight' || e.key === 'ArrowLeft'
+        ? tab === 'running'
+          ? 'final'
+          : 'running'
+        : e.key === 'Home'
+          ? 'running'
+          : e.key === 'End'
+            ? 'final'
+            : null
+    if (next === null) return
+    e.preventDefault()
+    setTab(next)
+    ;(next === 'running' ? runningTab : finalTab).current?.focus()
+  }
 
   // Re-read on every render, so a deposit or a discharge shows at once.
   const vm = billingVm(engine, actor)
@@ -60,16 +85,20 @@ export default function BillingDesk({ engine, actor }: { engine: Engine; actor: 
       </header>
 
       <p className="page-summary">
-        <strong>{vm.active.length}</strong> patients are in beds now, with bills still running.{' '}
-        <strong>{vm.discharged.length}</strong> have gone home: {formatINR(totals.outstandingPaise)} is still owed on
-        their final bills, and {totals.refundCount} got money back.
+        <strong>{vm.active.length}</strong> {vm.active.length === 1 ? 'patient is' : 'patients are'} in beds now,
+        with bills still running. <strong>{vm.discharged.length}</strong>{' '}
+        {vm.discharged.length === 1 ? 'has' : 'have'} gone home: {formatINR(totals.outstandingPaise)} is still owed
+        on their final bills, and {totals.refundCount} {totals.refundCount === 1 ? 'bill ends' : 'bills end'} with a
+        refund due to the patient.
       </p>
 
-      <div className="tabs" role="tablist" aria-label="Which bills">
+      <div className="tabs" role="tablist" aria-label="Which bills" onKeyDown={onTabKey}>
         <button
           type="button"
           role="tab"
           id="tab-running"
+          ref={runningTab}
+          tabIndex={tab === 'running' ? 0 : -1}
           aria-selected={tab === 'running'}
           aria-controls="panel-bills"
           className={tab === 'running' ? 'is-on' : ''}
@@ -81,6 +110,8 @@ export default function BillingDesk({ engine, actor }: { engine: Engine; actor: 
           type="button"
           role="tab"
           id="tab-final"
+          ref={finalTab}
+          tabIndex={tab === 'final' ? 0 : -1}
           aria-selected={tab === 'final'}
           aria-controls="panel-bills"
           className={tab === 'final' ? 'is-on' : ''}

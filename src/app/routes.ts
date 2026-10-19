@@ -1,5 +1,6 @@
 import type { Role } from '../core/permissions'
 import { can } from '../core/permissions'
+import { listRoles, ROLE_ORDER } from './labels'
 
 /**
  * The app's views, addressed by the URL hash (#bills, #staff, ...) so the
@@ -12,30 +13,27 @@ export type RouteKey = 'hospital' | 'bills' | 'ambulances' | 'staff' | 'event-lo
 export interface RouteDef {
   key: RouteKey
   label: string
-  /** Whether a role may open this view. The engine still checks every command on its own. */
+  /**
+   * Whether a role may open this view. Views only read; every change a view
+   * offers is a command, and the engine checks each command's role itself.
+   */
   allowed: (role: Role) => boolean
-  /** Shown when a role may not open the view: who can. */
-  whoCan: string
 }
 
 export const ROUTES: RouteDef[] = [
-  { key: 'hospital', label: 'Hospital', allowed: () => true, whoCan: 'everyone' },
-  {
-    key: 'bills',
-    label: 'Bills',
-    allowed: (role) => can(role, 'VIEW_BILLING'),
-    whoCan: 'the billing desk and the administrator',
-  },
-  {
-    key: 'ambulances',
-    label: 'Ambulances',
-    allowed: (role) => can(role, 'VIEW_CLINICAL'),
-    whoCan: 'clinical staff, reception and the administrator',
-  },
-  { key: 'staff', label: 'Staff', allowed: (role) => role === 'ADMIN', whoCan: 'the administrator' },
-  { key: 'event-log', label: 'Event log', allowed: (role) => role === 'ADMIN', whoCan: 'the administrator' },
-  { key: 'measurements', label: 'Measurements', allowed: () => true, whoCan: 'everyone' },
+  { key: 'hospital', label: 'Hospital', allowed: () => true },
+  { key: 'bills', label: 'Bills', allowed: (role) => can(role, 'VIEW_BILLING') },
+  { key: 'ambulances', label: 'Ambulances', allowed: (role) => can(role, 'VIEW_CLINICAL') },
+  { key: 'staff', label: 'Staff', allowed: (role) => role === 'ADMIN' },
+  { key: 'event-log', label: 'Event log', allowed: (role) => role === 'ADMIN' },
+  { key: 'measurements', label: 'Measurements', allowed: () => true },
 ]
+
+/** Who may open a view, in words ("the billing desk and the administrator"), read from `allowed`. */
+export function whoCan(def: RouteDef): string {
+  const roles = ROLE_ORDER.filter((r) => def.allowed(r))
+  return roles.length === ROLE_ORDER.length ? 'everyone' : listRoles(roles, 'and')
+}
 
 /** The views in the main navigation, in order (Measurements is reached from the page itself). */
 export const NAV_ROUTES: RouteKey[] = ['hospital', 'bills', 'ambulances', 'staff', 'event-log']
@@ -50,9 +48,8 @@ export function routeDef(key: RouteKey): RouteDef {
 export const HOW_IT_WORKS_ANCHOR = 'how-it-works'
 
 /**
- * Every key the URL may carry, in the hash or in `?screen=`: the current
- * view names plus the names earlier links used, so an old link still opens
- * the view that now holds that content.
+ * Every key the URL may carry, in the hash or in `?screen=`: each view's
+ * name plus a few aliases, mapped to the view that shows that content.
  */
 const KEY_ALIASES: Record<string, RouteKey> = {
   hospital: 'hospital',
@@ -77,7 +74,13 @@ const KEY_ALIASES: Record<string, RouteKey> = {
 export function routeFromKey(raw: string | null | undefined): RouteKey | null {
   if (!raw) return null
   const key = raw.replace(/^#\/?/, '').trim().toLowerCase()
-  return KEY_ALIASES[key] ?? null
+  // own keys only: "constructor" or "__proto__" must not resolve through the prototype
+  return Object.hasOwn(KEY_ALIASES, key) ? KEY_ALIASES[key] : null
+}
+
+/** True when a hash points at the How it works section (any case, with or without "#/"). */
+export function isHowItWorksHash(hash: string): boolean {
+  return hash.replace(/^#\/?/, '').trim().toLowerCase() === HOW_IT_WORKS_ANCHOR
 }
 
 /** The route a hash selects; an empty or unknown hash is the Hospital view. */

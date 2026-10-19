@@ -1,11 +1,13 @@
+import { useEffect, useRef, useState } from 'react'
 import benchmarkJson from '../data/benchmark.json'
 import { formatINR } from '../format'
+import { prefersReducedMotion } from '../motion'
 
 interface Benchmark {
   commands: number
   n1: { invoicesWrong: number; worstErrorPaise: number }
   n2: { phantomFreeBeds: number; wrongfulRefusals: number; crashesInjected: number }
-  n3: { invoicesWrong: number }
+  n3: { invoicesWrong: number; dayCasesFreed: number }
   wardos: { invoicesWrong: number; invoicesChecked: number; bedsDrifted: number; bedsChecked: number }
 }
 
@@ -28,6 +30,7 @@ function Units({ total, wrong, label }: { total: number; wrong: number; label: s
         return (
           <rect
             key={i}
+            style={{ ['--k' as string]: i }}
             className={i < wrong ? 'units__wrong' : 'units__right'}
             x={x + (i < wrong ? 0 : 0.75)}
             y={y + (i < wrong ? 0 : 0.75)}
@@ -48,11 +51,31 @@ function Units({ total, wrong, label }: { total: number; wrong: number; label: s
  */
 export default function Proof() {
   const total = benchmark.wardos.invoicesChecked
+  // The wrong bills fill in one after another the first time the figure
+  // scrolls into view; without that (no observer, reduced motion) it simply shows.
+  const ref = useRef<HTMLElement | null>(null)
+  const [phase, setPhase] = useState<'still' | 'waiting' | 'seen'>('still')
+  useEffect(() => {
+    const el = ref.current
+    if (!el || typeof IntersectionObserver === 'undefined' || prefersReducedMotion()) return
+    setPhase('waiting')
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries.some((e) => e.isIntersecting)) {
+          setPhase('seen')
+          observer.disconnect()
+        }
+      },
+      { threshold: 0.35 },
+    )
+    observer.observe(el)
+    return () => observer.disconnect()
+  }, [])
   const rows = [
     {
       key: 'float',
       name: 'Float money',
-      how: 'Rupees kept as decimal numbers, adjusted on a running total.',
+      how: 'A 2.5% surcharge added to a running total in decimal rupees, then taken off again. The removal never quite cancels it.',
       wrong: benchmark.n1.invoicesWrong,
       note: `Worst bill off by ${formatINR(benchmark.n1.worstErrorPaise)}.`,
     },
@@ -61,19 +84,19 @@ export default function Proof() {
       name: 'Millisecond date maths',
       how: 'Nights counted as hours divided by 24, rounded.',
       wrong: benchmark.n3.invoicesWrong,
-      note: 'Short stays rounded down to zero nights.',
+      note: `The wrong number of nights; ${benchmark.n3.dayCasesFreed} short stays billed none at all.`,
     },
     {
       key: 'wardos',
       name: 'WardOS',
-      how: 'Whole paise, and nights counted on the Indian calendar day.',
+      how: 'Each bill worked out once, in whole paise, with nights counted by the Indian calendar day.',
       wrong: benchmark.wardos.invoicesWrong,
       note: 'Every bill matches the independent check.',
     },
   ]
 
   return (
-    <section className="proof" aria-labelledby="proof-title">
+    <section className={`proof proof--${phase}`} aria-labelledby="proof-title" ref={ref}>
       <div className="section-head">
         <h2 id="proof-title">The same six months, billed three ways</h2>
         <p>

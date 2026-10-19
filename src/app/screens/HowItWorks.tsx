@@ -12,7 +12,7 @@ type Outcome<T> = { state: 'idle' } | { state: 'done'; result: T } | { state: 'n
 
 function Result({ tone, children }: { tone: 'refused' | 'ok' | 'info'; children: ReactNode }) {
   return (
-    <div className={`result result--${tone}`} role="status">
+    <div className={`result result--${tone}`}>
       <Icon name={tone === 'ok' ? 'check' : tone === 'refused' ? 'shield' : 'info'} size={20} />
       <div>{children}</div>
     </div>
@@ -86,27 +86,46 @@ function LogTail({ engine }: { engine: Engine }) {
   )
 }
 
-export default function HowItWorks({ engine, actor }: { engine: Engine; actor: Actor }) {
+/** The six record tables a replay rebuilds and compares (logins and the fixed beds and ambulances are not replayed). */
+const REPLAYED = 'patients, stays, charges, bills, ambulance calls and staff'
+
+export default function HowItWorks({
+  engine,
+  actor,
+}: {
+  engine: Engine
+  actor: Actor
+  /** The newest event id: the section redraws only when the log grows. */
+  logVersion: number
+}) {
   const [nurse, setNurse] = useState<Outcome<RefusalResult>>({ state: 'idle' })
   const [twice, setTwice] = useState<Outcome<RefusalResult>>({ state: 'idle' })
   const [check, setCheck] = useState<Outcome<ReplayCheckResult>>({ state: 'idle' })
+  // One live region, always present, so a screen reader reads each result as it arrives.
+  const [announcement, setAnnouncement] = useState('')
 
   function runNurse(): void {
     const result = tryDischargeAsNurse(engine)
-    setNurse(result ? { state: 'done', result } : { state: 'nothing', reason: 'Nobody is in a bed right now. Admit someone first, then try again.' })
+    const reason = 'Nobody is in a bed right now. Admit someone first, then try again.'
+    setNurse(result ? { state: 'done', result } : { state: 'nothing', reason })
+    setAnnouncement(result ? `Refused. The engine answered: ${result.message}` : reason)
   }
 
   function runTwice(): void {
     const result = tryDoubleBooking(engine)
-    setTwice(
-      result
-        ? { state: 'done', result }
-        : { state: 'nothing', reason: 'Every bed is free right now. Admit someone first, then try again.' },
-    )
+    const reason = 'Every bed is free right now. Admit someone first, then try again.'
+    setTwice(result ? { state: 'done', result } : { state: 'nothing', reason })
+    setAnnouncement(result ? `Refused. SQLite said: ${result.message}` : reason)
   }
 
   function runCheck(): void {
-    setCheck({ state: 'done', result: replayCheck(engine) })
+    const result = replayCheck(engine)
+    setCheck({ state: 'done', result })
+    setAnnouncement(
+      result.identical
+        ? `Replayed ${result.events} events. Every record matches the live database.`
+        : `The replay differs from the live database in ${result.differences.length} places.`,
+    )
   }
 
   const occupiedBed = engine.beds().find((b) => b.occupied)
@@ -114,6 +133,9 @@ export default function HowItWorks({ engine, actor }: { engine: Engine; actor: A
 
   return (
     <section className="how" id="how-it-works" aria-labelledby="how-title">
+      <p className="sr-only" role="status" aria-live="polite">
+        {announcement}
+      </p>
       <div className="section-head">
         <h2 id="how-title">How it works</h2>
         <p>
@@ -192,8 +214,8 @@ export default function HowItWorks({ engine, actor }: { engine: Engine; actor: A
             <h3>Every change is written down, and can be replayed</h3>
             <p>
               A command saves its change and one line in an append-only event log, in the same transaction. Replay
-              the log from the start and you get the hospital back exactly, which is how the time machine above
-              works.
+              the log from the start and every patient, stay, charge, bill, ambulance call and staff record comes
+              back exactly as it is now. The time machine above is that replay, stopped at an earlier morning.
             </p>
           </div>
           <div className="stop__demo">
@@ -207,8 +229,8 @@ export default function HowItWorks({ engine, actor }: { engine: Engine; actor: A
                 <p>
                   Replayed {check.result.events.toLocaleString('en-IN')} events in{' '}
                   {Math.max(1, Math.round(check.result.milliseconds))} ms: {check.result.patients} patients,{' '}
-                  {check.result.stays} stays and {check.result.bills} bills. Identical to the live database, table by
-                  table and field by field.
+                  {check.result.stays} stays and {check.result.bills} bills. All six record tables ({REPLAYED}) match
+                  the live database, field by field. Logins are not replayed: passwords never enter the log.
                 </p>
               </Result>
             ) : (

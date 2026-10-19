@@ -13,10 +13,10 @@ import Ambulances from './screens/Ambulances'
 import AuditTrail from './screens/AuditTrail'
 import Measurements from './screens/Measurements'
 import { useHashRoute } from './hooks'
-import { HOW_IT_WORKS_ANCHOR, routeDef, routeFromKey } from './routes'
+import { HOW_IT_WORKS_ANCHOR, isHowItWorksHash, routeDef, routeFromKey, whoCan } from './routes'
 import type { RouteKey } from './routes'
 import { preferredRole, setPreferredRole, signInAs, subscribePreferredRole, switchRole } from './session'
-import { ROLE_LABELS, ROLE_ORDER } from './labels'
+import { ROLE_AS, ROLE_LABELS, ROLE_ORDER } from './labels'
 import { Icon } from './icons'
 import './styles/tokens.css'
 import './styles/components.css'
@@ -38,16 +38,17 @@ function roleFromUrl(): Role | null {
 }
 
 /**
- * `?screen=<view>` opens a view on first load, for links made before the
- * views were addressed by the hash (old names map to the view that now holds
- * that content, e.g. `time-machine` to the Hospital view).
+ * `?screen=<view>` opens a view on first load. It takes any view name or
+ * alias the hash does (e.g. `time-machine` for the Hospital view), and
+ * `how-it-works` lands on that section.
  */
 function applyScreenParam(): void {
   const screen = new URLSearchParams(window.location.search).get('screen')
   if (screen === null || window.location.hash) return
   const route = routeFromKey(screen)
   if (!route) return
-  window.history.replaceState(null, '', `${window.location.pathname}${window.location.search}#${route}`)
+  const target = isHowItWorksHash(screen) ? HOW_IT_WORKS_ANCHOR : route
+  window.history.replaceState(null, '', `${window.location.pathname}${window.location.search}#${target}`)
   window.dispatchEvent(new HashChangeEvent('hashchange'))
 }
 
@@ -82,10 +83,13 @@ function LockedView({ route, actor }: { route: RouteKey; actor: Actor }) {
       <span className="lockedview__icon" aria-hidden="true">
         <Icon name="lock" size={28} />
       </span>
-      <h1 id="locked-title">{def.label} is not open to {ROLE_LABELS[actor.role].toLowerCase()}</h1>
+      <h1 id="locked-title">
+        {def.label} is not open to {ROLE_AS[actor.role]}
+      </h1>
       <p>
-        Only {def.whoCan} can open this view. The engine enforces the same rule on every command, so the view
-        being hidden is a courtesy, not the protection.
+        Only {whoCan(def)} can open this view. It only reads; anything it would let you change is a command, and
+        the engine checks your role on every command before it touches the database. Keeping a read-only view
+        out of the menu is a courtesy of this demo, not a security boundary.
       </p>
       <div className="lockedview__actions">
         {allowed.map((role) => (
@@ -122,7 +126,7 @@ export default function App() {
   // A new view starts at its top; "How it works" scrolls to its section.
   useLayoutEffect(() => {
     if (state.status !== 'ready') return
-    if (hash === `#${HOW_IT_WORKS_ANCHOR}`) {
+    if (isHowItWorksHash(hash)) {
       document.getElementById(HOW_IT_WORKS_ANCHOR)?.scrollIntoView({ block: 'start' })
     } else {
       window.scrollTo({ top: 0, behavior: 'instant' })
@@ -142,13 +146,16 @@ export default function App() {
 
   return (
     <Shell actor={actor} route={route}>
-      {!allowed && <LockedView route={route} actor={actor} />}
-      {allowed && route === 'hospital' && <Hospital engine={engine} actor={actor} />}
-      {allowed && route === 'bills' && <BillingDesk engine={engine} actor={actor} />}
-      {allowed && route === 'ambulances' && <Ambulances engine={engine} actor={actor} />}
-      {allowed && route === 'staff' && <Payroll engine={engine} actor={actor} />}
-      {allowed && route === 'event-log' && <AuditTrail engine={engine} actor={actor} />}
-      {allowed && route === 'measurements' && <Measurements />}
+      {/* keyed by view, so moving between views fades the new one in */}
+      <div className="view" key={allowed ? route : `${route}-locked`}>
+        {!allowed && <LockedView route={route} actor={actor} />}
+        {allowed && route === 'hospital' && <Hospital engine={engine} actor={actor} />}
+        {allowed && route === 'bills' && <BillingDesk engine={engine} actor={actor} />}
+        {allowed && route === 'ambulances' && <Ambulances engine={engine} actor={actor} />}
+        {allowed && route === 'staff' && <Payroll engine={engine} actor={actor} />}
+        {allowed && route === 'event-log' && <AuditTrail engine={engine} actor={actor} />}
+        {allowed && route === 'measurements' && <Measurements />}
+      </div>
     </Shell>
   )
 }

@@ -16,7 +16,19 @@ A hospital's whole operating picture — every bed, every bill, every shift — 
   <img src="docs/shots/how-it-works-light.png" width="49%" alt="How it works: a nurse's discharge refused by the engine and a second patient in a taken bed refused by SQLite, each with the real error" />
 </p>
 
-**366 tests. No server. Every byte stays on your device.**
+<details>
+<summary>More screenshots</summary>
+<p align="center">
+  <img src="docs/shots/chart-light.png" width="49%" alt="A patient's chart in the side panel: reason for admission, nights so far, the running bill as a receipt, and the actions the current role may take" />
+  <img src="docs/shots/bills-light.png" width="49%" alt="The Bills view: running bills with each patient's bed, nights, total so far, deposit and what they would owe or get back" />
+  <img src="docs/shots/ambulances-light.png" width="49%" alt="The Ambulances view: four vehicles with number plates, one out on a call and three on station" />
+  <img src="docs/shots/event-log-dark.png" width="49%" alt="The event log in the night theme: every change as a plain sentence, with the stored record behind each line" />
+  <img src="docs/shots/phone-light.png" width="24%" alt="The hospital view on a phone: the directory sign with the four wards and the two main actions" />
+  <img src="docs/shots/phone-plan-dark.png" width="24%" alt="The floor plan on a phone in the night theme, the wards stacked one above another" />
+</p>
+</details>
+
+**364 tests. No server. Every byte stays on your device.**
 
 ## What's in it
 
@@ -24,7 +36,7 @@ A hospital's whole operating picture — every bed, every bill, every shift — 
 |---|---|
 | **Hospital** | A live floor plan of the whole hospital: 32 beds in four colour-coded wards, the nurses' station, reception and the ambulance bay. Click a free bed to admit someone, a taken bed to open the chart and its running bill, then add charges, take a deposit, move beds or discharge |
 | **Time machine** | Under the plan: beds in use every morning for six months. Drag along the chart, or press Replay, and the plan is replayed from the event log for that day — every position is a full replay |
-| **How it works** | Three rules to try to break on the live database: discharge a patient as the nurse (the engine refuses), put a second patient in a taken bed with raw SQL (SQLite refuses), and replay the whole log against the live tables (identical) |
+| **How it works** | Three rules to try to break on the live database: discharge a patient as the nurse (the engine refuses), put a second patient in a taken bed with raw SQL (SQLite refuses), and replay the whole log against the live records (all six record tables match, field by field) |
 | **Bills** | Running bills that recompute as charges land, and final bills frozen at discharge; an over-paid deposit is a refund, never a negative charge |
 | **Ambulances** | A fleet of four; send one to a call and mark it back, one open call per vehicle |
 | **Staff** | Five staff types, each with its own pay rule, broken down line by line |
@@ -118,7 +130,7 @@ Every headline claim has a test that fails when the enforcement is deliberately 
 | # | Claim | Enforced by | Mutation applied | Killed by |
 |---|---|---|---|---|
 | C1 | Double-booking a bed is structurally impossible | Partial unique index on active admissions per bed, in the schema itself — not application code | Delete the `uq_active_bed` index from `schema.sql` | 4 tests across 3 files |
-| C2 | The event log is sufficient: replaying it reproduces the exact live state | Every mutating command appends one event, in the same transaction, before it commits | Turn `CHARGE_ADDED` into a no-op during replay | 4 tests across 3 files |
+| C2 | The event log is sufficient: replaying it reproduces the six operational tables exactly (logins are left out: passwords never enter the log) | Every mutating command appends one event, in the same transaction, before it commits | Turn `CHARGE_ADDED` into a no-op during replay | 4 tests across 3 files |
 | C3 | Billing direction is right: an over-deposit yields a refund, never a negative charge | One balance computation — room total plus extras, minus deposit — with the sign read afterward, not chosen upfront | Flip the sign in the balance computation | 11 tests across 5 files |
 | C4 | Money never floats | Every amount is an integer number of paise end to end, validated at the boundary of every command that takes one | Drop the `requirePaise` boundary check from `addCharge` | 2 tests in 1 file |
 | C5 | Permissions are enforced in the command layer, not the interface | Every command checks the actor's role against a permission matrix before touching the database | Drop the `requirePermission` check from `discharge` | 3 tests in 1 file |
@@ -129,7 +141,7 @@ Every headline claim has a test that fails when the enforcement is deliberately 
 git clone https://github.com/safdar-hussain1/wardos
 cd wardos
 npm ci         # needs Node 20.19+ or 22.12+ (CI tests 22 and 24); postinstall copies sql-wasm.wasm into public/
-npm test       # 366 tests in 21 files
+npm test       # 364 tests in 21 files
 npm run dev    # the app with hot reload; Vite prints the local URL
 ```
 
@@ -164,7 +176,7 @@ URL options, on the dev server or the built site:
 |---|---|---|
 | `?as=<who>` | a role — `admin`, `reception`, `doctor`, `nurse`, `billing` (any case) — or a demo username such as `dr.rao` | opens the demo on shift as that account (without it, the administrator) |
 | `#<view>` | `hospital`, `bills`, `ambulances`, `staff`, `event-log`, `measurements`, or `how-it-works` | opens that view; the back button and shared links work |
-| `?screen=<key>` | any view name above, or an older name: `deck`, `wards`, `time-machine` (the hospital view), `billing`, `payroll`, `audit`, `about` | opens that view on first load |
+| `?screen=<key>` | any view name above, or an alias: `deck`, `wards`, `time-machine` (the hospital view), `billing`, `payroll`, `audit`, `about` | opens that view on first load |
 | `?selftest=1` | — | runs three engine checks in the page (golden invoice, C1 constraint probe, replay spot-check) and writes `WARDOS-SELFTEST: PASS 3/3`, or the first failure, into the tab title |
 
 For example `http://localhost:8320/?as=billing#bills`. Staff and the event log are administrator-only views; any other role sees a locked page with a one-click switch to a role that may open it.
@@ -172,7 +184,7 @@ For example `http://localhost:8320/?as=billing#bills`. Staff and the event log a
 ### Tests and checks
 
 ```sh
-npm test                                        # the full suite: 366 tests in 21 files
+npm test                                        # the full suite: 364 tests in 21 files
 npx vitest run tests/billing.test.ts            # one file
 npx tsc -b && npx tsc -p tsconfig.bench.json    # type-check the app and the benchmark, as CI does
 ```
@@ -265,7 +277,7 @@ wardos/
 │   ├── bench/    benchmark harness and truth oracle
 │   ├── cli/      the CLI over the engine
 │   └── app/      React SPA — renders engine state, issues engine commands
-├── tests/        21 files, 366 tests
+├── tests/        21 files, 364 tests
 └── index.html    the page template: SEO tags, theme boot, the static first paint
 ```
 

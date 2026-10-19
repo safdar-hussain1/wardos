@@ -1,13 +1,15 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useId, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import type { Actor } from '../../core/engine'
 import type { Role } from '../../core/permissions'
 import { store } from '../store'
 import { ROLE_BLURBS, ROLE_LABELS, ROLE_ORDER } from '../labels'
-import { NAV_ROUTES, routeDef } from '../routes'
+import { NAV_ROUTES, routeDef, whoCan } from '../routes'
 import type { RouteKey } from '../routes'
 import { useTheme, navigateTo } from '../hooks'
 import { switchRole, signOut } from '../session'
+import { ANCHOR_ISO } from '../../core/clock'
+import { formatDateTimeIST } from '../format'
 import { BrandMark, Icon } from '../icons'
 import type { IconName } from '../icons'
 
@@ -33,7 +35,7 @@ function NavLinks({ actor, route, variant }: { actor: Actor; route: RouteKey; va
             href={`#${key}`}
             className={`navlink navlink--${variant}${current ? ' is-current' : ''}${locked ? ' is-locked' : ''}`}
             aria-current={current ? 'page' : undefined}
-            aria-label={locked ? `${def.label} (only ${def.whoCan})` : undefined}
+            aria-label={locked ? `${def.label} (only ${whoCan(def)})` : undefined}
           >
             <Icon name={NAV_ICONS[key]} size={variant === 'tabs' ? 22 : 18} />
             <span className="navlink__text">{def.label}</span>
@@ -50,6 +52,18 @@ function RoleMenu({ actor }: { actor: Actor }) {
   const [confirmReset, setConfirmReset] = useState(false)
   const wrapRef = useRef<HTMLDivElement | null>(null)
   const buttonRef = useRef<HTMLButtonElement | null>(null)
+  const resetItemRef = useRef<HTMLButtonElement | null>(null)
+  const confirmRef = useRef<HTMLButtonElement | null>(null)
+  const panelId = useId()
+  const wasConfirming = useRef(false)
+
+  // Keep focus on a control that exists: the confirm button when it appears,
+  // back on "Reset the demo" when the question is cancelled.
+  useEffect(() => {
+    if (confirmReset) confirmRef.current?.focus()
+    else if (wasConfirming.current && open) resetItemRef.current?.focus()
+    wasConfirming.current = confirmReset
+  }, [confirmReset, open])
 
   useEffect(() => {
     if (!open) return
@@ -92,7 +106,7 @@ function RoleMenu({ actor }: { actor: Actor }) {
         type="button"
         className="rolemenu__button"
         aria-expanded={open}
-        aria-haspopup="true"
+        aria-controls={open ? panelId : undefined}
         onClick={() => setOpen((o) => !o)}
         ref={buttonRef}
       >
@@ -106,7 +120,7 @@ function RoleMenu({ actor }: { actor: Actor }) {
         <Icon name="chevron" size={16} />
       </button>
       {open && (
-        <div className="rolemenu__panel">
+        <div className="rolemenu__panel" id={panelId}>
           <p className="rolemenu__heading">Switch role to see what changes</p>
           <ul className="rolemenu__list">
             {ROLE_ORDER.map((role) => (
@@ -134,7 +148,7 @@ function RoleMenu({ actor }: { actor: Actor }) {
               <div className="rolemenu__confirm">
                 <p>Reset the demo? Your changes are wiped and the original six-month hospital comes back.</p>
                 <div className="rolemenu__confirm-actions">
-                  <button type="button" className="button button--danger button--small" onClick={reset}>
+                  <button type="button" className="button button--danger button--small" onClick={reset} ref={confirmRef}>
                     Reset the demo
                   </button>
                   <button type="button" className="button button--ghost button--small" onClick={() => setConfirmReset(false)}>
@@ -144,7 +158,7 @@ function RoleMenu({ actor }: { actor: Actor }) {
               </div>
             ) : (
               <>
-                <button type="button" className="menu-action" onClick={() => setConfirmReset(true)}>
+                <button type="button" className="menu-action" onClick={() => setConfirmReset(true)} ref={resetItemRef}>
                   <Icon name="reset" size={18} /> Reset the demo
                 </button>
                 <button
@@ -180,7 +194,15 @@ function ThemeToggle() {
 export default function Shell({ actor, route, children }: { actor: Actor; route: RouteKey; children: ReactNode }) {
   return (
     <div className="app">
-      <a className="skip-link" href="#main">
+      <a
+        className="skip-link"
+        href="#main"
+        onClick={(e) => {
+          // move focus without touching the hash, which names the current view
+          e.preventDefault()
+          document.getElementById('main')?.focus()
+        }}
+      >
         Skip to content
       </a>
       <header className="topbar">
@@ -209,7 +231,7 @@ export default function Shell({ actor, route, children }: { actor: Actor; route:
       <section className="appfoot" aria-label="About this demo">
         <p>
           Everything on this page runs in your browser: a SQLite database compiled to WebAssembly, saved on this
-          device only. The clock is fixed at 09:00 on 1 August 2026, the hospital’s “today”.
+          device only. The clock is fixed at {formatDateTimeIST(ANCHOR_ISO)}, the hospital’s “today”.
         </p>
         <p className="appfoot__links">
           <a href="#how-it-works">How it works</a>

@@ -1,11 +1,11 @@
-import { useId, useState } from 'react'
+import { useEffect, useId, useState } from 'react'
 import type { FormEvent } from 'react'
 import type { Engine, Actor } from '../../core/engine'
 import { can } from '../../core/permissions'
 import { store } from '../store'
 import { formatDateTimeIST } from '../format'
 import { DISPATCH_LOCATIONS } from '../../seed/names'
-import { ROLE_LABELS } from '../labels'
+import { ROLE_AS, ROLE_LABELS } from '../labels'
 import { roleToSwitchTo, switchRole, whoMay } from '../session'
 import { Icon } from '../icons'
 
@@ -34,6 +34,16 @@ export default function Ambulances({ engine, actor }: { engine: Engine; actor: A
   const [error, setError] = useState<string | null>(null)
   const [failure, setFailure] = useState<string | null>(null)
   const listId = useId()
+  // After an action replaces the focused button, focus the control that takes its place.
+  const [focusNext, setFocusNext] = useState<string | null>(null)
+  useEffect(() => {
+    if (focusNext === null) return
+    document.querySelector<HTMLElement>(focusNext)?.focus()
+    setFocusNext(null)
+  }, [focusNext])
+
+  // The router keeps other roles out; this guard keeps the fleet private if it ever renders anyway.
+  if (!can(actor.role, 'VIEW_CLINICAL')) return null
 
   // Re-read on every render, so a dispatch or a return shows at once.
   const ambulances = engine.ambulances()
@@ -49,6 +59,12 @@ export default function Ambulances({ engine, actor }: { engine: Engine; actor: A
     setAdmissionId('')
     setError(null)
     setFailure(null)
+    setFocusNext(`[data-amb="${id}"] input`)
+  }
+
+  function closeForm(id: number): void {
+    setFormFor(null)
+    setFocusNext(`[data-amb="${id}"] [data-action="send"]`)
   }
 
   function send(e: FormEvent<HTMLFormElement>, ambulanceId: number): void {
@@ -68,15 +84,17 @@ export default function Ambulances({ engine, actor }: { engine: Engine; actor: A
         }),
       )
       setFormFor(null)
+      setFocusNext(`[data-amb="${ambulanceId}"] [data-action="return"]`)
     } catch (err) {
       setFailure(err instanceof Error ? err.message : String(err))
     }
   }
 
-  function bringBack(dispatchId: number): void {
+  function bringBack(dispatchId: number, ambulanceId: number): void {
     setFailure(null)
     try {
       store.dispatch((en, a) => en.returnAmbulance(a, { dispatchId }))
+      setFocusNext(`[data-amb="${ambulanceId}"] [data-action="send"]`)
     } catch (err) {
       setFailure(err instanceof Error ? err.message : String(err))
     }
@@ -101,7 +119,7 @@ export default function Ambulances({ engine, actor }: { engine: Engine; actor: A
           <Icon name="lock" size={18} />
           <div>
             <p>
-              As {ROLE_LABELS[actor.role].toLowerCase()} you can see the fleet, but only {whoMay('DISPATCH_AMBULANCE')}{' '}
+              As {ROLE_AS[actor.role]} you can see the fleet, but only {whoMay('DISPATCH_AMBULANCE')}{' '}
               can send an ambulance out.
             </p>
             {other && (
@@ -123,7 +141,7 @@ export default function Ambulances({ engine, actor }: { engine: Engine; actor: A
         {ambulances.map((amb) => {
           const out = amb.openDispatch
           return (
-            <li key={amb.id} className={`vehicle${out ? ' vehicle--out' : ''}`}>
+            <li key={amb.id} className={`vehicle${out ? ' vehicle--out' : ''}`} data-amb={amb.id}>
               <Van out={out !== undefined} />
               <div className="vehicle__id">
                 <span className="numberplate">{amb.plate}</span>
@@ -136,7 +154,12 @@ export default function Ambulances({ engine, actor }: { engine: Engine; actor: A
                   </p>
                   <p className="vehicle__since">Since {formatDateTimeIST(out.dispatchedAt)}</p>
                   {canReturn && (
-                    <button type="button" className="button button--block" onClick={() => bringBack(out.id)}>
+                    <button
+                      type="button"
+                      className="button button--block"
+                      onClick={() => bringBack(out.id, amb.id)}
+                      data-action="return"
+                    >
                       Mark back on station
                     </button>
                   )}
@@ -151,7 +174,7 @@ export default function Ambulances({ engine, actor }: { engine: Engine; actor: A
                       <form className="form" onSubmit={(e) => send(e, amb.id)} noValidate>
                         <label className={`field${error ? ' field--error' : ''}`}>
                           <span className="field__label">Where to</span>
-                          <input value={location} onChange={(e) => setLocation(e.target.value)} list={listId} data-autofocus />
+                          <input value={location} onChange={(e) => setLocation(e.target.value)} list={listId} />
                           {error && <span className="field__error">{error}</span>}
                         </label>
                         <label className="field">
@@ -172,13 +195,13 @@ export default function Ambulances({ engine, actor }: { engine: Engine; actor: A
                           <button type="submit" className="button button--primary">
                             Send {amb.plate.replace('WD-AMB-', 'unit ')}
                           </button>
-                          <button type="button" className="button button--ghost" onClick={() => setFormFor(null)}>
+                          <button type="button" className="button button--ghost" onClick={() => closeForm(amb.id)}>
                             Cancel
                           </button>
                         </div>
                       </form>
                     ) : (
-                      <button type="button" className="button button--block" onClick={() => openForm(amb.id)}>
+                      <button type="button" className="button button--block" onClick={() => openForm(amb.id)} data-action="send">
                         Send to a call
                       </button>
                     ))}

@@ -1,4 +1,4 @@
-import { useId, useState } from 'react'
+import { useEffect, useId, useRef, useState } from 'react'
 import type { FormEvent, ReactNode } from 'react'
 import type { Engine, Actor, BedView, PatientRow } from '../../core/engine'
 import type { ChargeKind, ComputedInvoice } from '../../core/billing'
@@ -6,9 +6,9 @@ import type { Permission, Role } from '../../core/permissions'
 import { can } from '../../core/permissions'
 import { rupees } from '../../core/money'
 import { store } from '../store'
-import { chartVm, samplePatient } from '../viewmodels'
+import { chartVm, samplePatient, WARD_ORDER } from '../viewmodels'
 import { formatINR, formatDateIST } from '../format'
-import { CHARGE_KIND_LABELS, ROLE_LABELS, WARD_LABELS, WARD_TOKENS } from '../labels'
+import { CHARGE_KIND_LABELS, ROLE_AS, ROLE_LABELS, WARD_LABELS, WARD_TOKENS } from '../labels'
 import { roleToSwitchTo, switchRole, whoMay } from '../session'
 import { nightsBetween } from '../../core/billing'
 import {
@@ -56,7 +56,7 @@ function Locked({ permission, actor, children }: { permission: Permission; actor
       <Icon name="lock" size={18} />
       <div>
         <p>
-          {children} As {ROLE_LABELS[actor.role].toLowerCase()} you can see this, but only {whoMay(permission)} can do it.
+          {children} As {ROLE_AS[actor.role]} you can see this, but only {whoMay(permission)} can do it.
         </p>
         {other && (
           <button type="button" className="text-button" onClick={() => switchRole(other)}>
@@ -192,7 +192,7 @@ export function AdmitPanel({
       <form id={formId} className="form" onSubmit={submit} noValidate>
         <Field label="Bed">
           <select value={bed.id} onChange={(e) => onPickBed(Number(e.target.value))} disabled={!canAdmit}>
-            {['GENERAL', 'TWIN', 'PRIVATE', 'ICU'].map((ward) =>
+            {WARD_ORDER.map((ward) =>
               wardBeds(ward).length === 0 ? null : (
                 <optgroup key={ward} label={WARD_LABELS[ward]}>
                   {wardBeds(ward).map((b) => (
@@ -368,6 +368,16 @@ export function ChartPanel({
   const [done, setDone] = useState<string | null>(null)
   const [failure, setFailure] = useState<string | null>(null)
   const listId = useId()
+  const dischargeRef = useRef<HTMLButtonElement | null>(null)
+  const confirmRef = useRef<HTMLButtonElement | null>(null)
+  const wasConfirming = useRef(false)
+
+  // The confirmation replaces the Discharge button and back again; move focus with it.
+  useEffect(() => {
+    if (confirming) confirmRef.current?.focus()
+    else if (wasConfirming.current) dischargeRef.current?.focus()
+    wasConfirming.current = confirming
+  }, [confirming])
 
   if (!vm.found) return <p className="notice">This stay is no longer on the ward.</p>
 
@@ -433,7 +443,8 @@ export function ChartPanel({
     }
     setErrors({})
     const target = moveTo
-    if (run('Moved. The floor plan shows the new bed.', (en, a) => en.transfer(a, { admissionId, toBedId: target }))) {
+    const label = freeBeds.find((b) => b.id === target)?.label ?? 'the new bed'
+    if (run(`Moved to ${label}.`, (en, a) => en.transfer(a, { admissionId, toBedId: target }))) {
       setMoveTo('')
       onMoved(target)
     }
@@ -473,8 +484,12 @@ export function ChartPanel({
 
       {vm.preview && <InvoiceDetail invoice={vm.preview} />}
 
+      {/* always mounted, so a screen reader announces each confirmation when it appears */}
+      <p className="sr-only" role="status" aria-live="polite">
+        {done ?? ''}
+      </p>
       {done && (
-        <p className="notice notice--ok" role="status">
+        <p className="notice notice--ok">
           <Icon name="check" size={18} /> {done}
         </p>
       )}
@@ -543,7 +558,7 @@ export function ChartPanel({
             <Field label="Free bed" error={errors.move}>
               <select value={moveTo} onChange={(e) => setMoveTo(e.target.value === '' ? '' : Number(e.target.value))}>
                 <option value="">Choose a bed</option>
-                {['GENERAL', 'TWIN', 'PRIVATE', 'ICU'].map((ward) => {
+                {WARD_ORDER.map((ward) => {
                   const beds = freeBeds.filter((b) => b.ward === ward)
                   return beds.length === 0 ? null : (
                     <optgroup key={ward} label={WARD_LABELS[ward]}>
@@ -576,7 +591,7 @@ export function ChartPanel({
                 Discharge {vm.patientName}? The bill becomes final and {bed?.label ?? 'the bed'} is free again.
               </p>
               <div className="confirm__actions">
-                <button type="button" className="button button--danger" onClick={discharge} data-autofocus>
+                <button type="button" className="button button--danger" onClick={discharge} ref={confirmRef}>
                   Discharge and print the bill
                 </button>
                 <button type="button" className="button button--ghost" onClick={() => setConfirming(false)}>
@@ -585,7 +600,7 @@ export function ChartPanel({
               </div>
             </div>
           ) : (
-            <button type="button" className="button button--primary" onClick={() => setConfirming(true)}>
+            <button type="button" className="button button--primary" onClick={() => setConfirming(true)} ref={dischargeRef}>
               Discharge {vm.patientName?.split(' ')[0] ?? 'patient'}
             </button>
           )

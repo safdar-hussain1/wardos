@@ -74,10 +74,32 @@
   line-height: 1.55;
 }
 
+.sign__facts {
+  display: grid;
+  gap: 7px;
+  margin: 16px 0 0;
+  padding: 0;
+  list-style: none;
+  color: var(--sign-ink);
+  font-size: 0.97rem;
+  font-weight: 650;
+}
+
+.sign__facts li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.sign__facts .icon {
+  flex: none;
+  color: var(--signal);
+}
+
 .directory {
   display: grid;
   margin: auto 0 0;
-  padding-top: 24px;
+  padding-top: 20px;
   padding: 0;
   list-style: none;
 }
@@ -91,7 +113,7 @@
   grid-template-columns: auto 1fr auto;
   align-items: center;
   gap: 12px;
-  padding: 9px 0;
+  padding: 8px 0;
   border-bottom: 1px solid var(--sign-line);
 }
 
@@ -138,7 +160,7 @@
   display: flex;
   flex-wrap: wrap;
   gap: 10px;
-  margin-top: 22px;
+  margin-top: 20px;
 }
 
 .sign__actions .button {
@@ -156,6 +178,7 @@
 
 /* the plan card */
 .plan-card {
+  position: relative;
   display: flex;
   flex-direction: column;
   min-width: 0;
@@ -166,11 +189,31 @@
   overflow: hidden;
 }
 
+.plan-card--history {
+  border-color: color-mix(in srgb, var(--signal) 75%, var(--line));
+  box-shadow:
+    0 0 0 4px color-mix(in srgb, var(--signal) 22%, transparent),
+    var(--shadow-plan);
+}
+
+.replaybar {
+  position: absolute;
+  left: 0;
+  top: 0;
+  z-index: 2;
+  width: 100%;
+  height: 4px;
+  background: var(--signal);
+  transform-origin: left center;
+  transform: scaleX(var(--p));
+}
+
 .plan-card__bar {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
+  gap: 8px 12px;
   padding: 14px 18px 4px;
 }
 
@@ -187,10 +230,29 @@
 }
 
 .status--history {
-  padding: 4px 12px 4px 8px;
+  gap: 10px;
+  padding: 5px 16px 5px 10px;
   border-radius: 999px;
-  background: color-mix(in srgb, var(--signal) 26%, var(--paper));
+  background: color-mix(in srgb, var(--signal) 28%, var(--paper));
   color: var(--ink);
+}
+
+.status__date {
+  font-size: 1.3rem;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  white-space: nowrap;
+}
+
+.status__note {
+  color: var(--ink-2);
+  font-size: 0.9rem;
+}
+
+@media (max-width: 560px) {
+  .status__note {
+    display: none;
+  }
 }
 
 .plan-card__count {
@@ -206,6 +268,9 @@
 
 .plan-card__plan {
   position: relative;
+  flex: 1;
+  display: grid;
+  align-content: center;
   padding: 6px 14px 8px;
   min-height: 200px;
 }
@@ -341,16 +406,22 @@
   stroke-linecap: round;
   stroke-linejoin: round;
   stroke-dasharray: 1;
-  animation: paint-line 1300ms var(--ease-out) both;
-  animation-delay: calc(var(--i) * 140ms + 250ms);
 }
 
 .floorline__end {
   fill: var(--plan-floor);
   stroke: var(--ward-general);
   stroke-width: 3;
+}
+
+.plan--intro .floorline__path {
+  animation: paint-line 1300ms var(--ease-out) both;
+  animation-delay: calc(var(--i) * 140ms + 700ms);
+}
+
+.plan--intro .floorline__end {
   animation: fade-in 300ms var(--ease-out) both;
-  animation-delay: calc(var(--i) * 140ms + 1300ms);
+  animation-delay: calc(var(--i) * 140ms + 1800ms);
 }
 
 .floorline--twin .floorline__path,
@@ -386,9 +457,9 @@
   cursor: pointer;
 }
 
-.bedwrap {
-  animation: bed-in 480ms var(--ease-out) both;
-  animation-delay: calc(var(--i) * 16ms + 200ms);
+.plan--intro .bedwrap {
+  animation: bed-in 420ms var(--ease-out) both;
+  animation-delay: calc(900ms + var(--w) * 110ms + var(--j) * 18ms);
 }
 
 .bed__lift {
@@ -412,6 +483,7 @@
   fill: var(--plan-bed);
   stroke: var(--plan-bed-line);
   stroke-width: 1.2;
+  filter: drop-shadow(0 1px 0 rgba(20, 35, 63, 0.1));
   transition: stroke 160ms var(--ease-out);
 }
 
@@ -538,6 +610,167 @@
   font-weight: 750;
   letter-spacing: 0.03em;
   fill: var(--ink-2);
+}
+
+/* -- the arrival: one sequence, once per page load ---------------------------- */
+
+@keyframes rise-in {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+}
+
+@keyframes draw-stroke {
+  from {
+    stroke-dashoffset: 1;
+  }
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+@keyframes blanket-rise {
+  from {
+    transform: scaleY(0);
+  }
+  to {
+    transform: scaleY(1);
+  }
+}
+
+@keyframes head-pop {
+  from {
+    transform: scale(0);
+  }
+  to {
+    transform: scale(1);
+  }
+}
+
+.hospital--intro .sign {
+  animation: fade-in 420ms var(--ease-out) both;
+}
+
+.hospital--intro .sign > * {
+  animation: rise-in 560ms var(--ease-out) both;
+}
+
+.hospital--intro .sign > :nth-child(1) {
+  animation-delay: 80ms;
+}
+
+.hospital--intro .sign > :nth-child(2) {
+  animation-delay: 170ms;
+}
+
+.hospital--intro .sign > :nth-child(3) {
+  animation-delay: 250ms;
+}
+
+.hospital--intro .sign > :nth-child(4) {
+  animation-delay: 330ms;
+}
+
+.hospital--intro .sign > :nth-child(5) {
+  animation-delay: 430ms;
+}
+
+.hospital--intro .sign > :nth-child(6) {
+  animation-delay: 510ms;
+}
+
+.hospital--intro .plan-card {
+  animation: rise-in 720ms var(--ease-out) 140ms both;
+}
+
+.plan--intro .plan__zone,
+.plan--intro .plan__corridor {
+  animation: fade-in 700ms var(--ease-out) 200ms both;
+}
+
+.plan--intro .plan__wall {
+  stroke-dasharray: 1;
+  animation: draw-stroke 900ms var(--ease-out) 260ms both;
+}
+
+.plan--intro .plan__fixtures {
+  animation: fade-in 600ms var(--ease-out) 750ms both;
+}
+
+.plan--intro .plan__plates,
+.plan--intro .plan__bay {
+  animation: fade-in 500ms var(--ease-out) 1150ms both;
+}
+
+.plan--intro .bed--occupied .bed__blanket {
+  animation: blanket-rise 560ms var(--ease-out) both;
+  animation-delay: calc(1250ms + var(--w) * 110ms + var(--j) * 18ms);
+}
+
+.plan--intro .bed--occupied .bed__head {
+  animation: head-pop 360ms var(--ease-out) both;
+  animation-delay: calc(1500ms + var(--w) * 110ms + var(--j) * 18ms);
+}
+
+.plan--intro .bed__initials.bed--occupied {
+  animation: fade-in 300ms var(--ease-out) both;
+  animation-delay: calc(1650ms + var(--w) * 110ms + var(--j) * 18ms);
+}
+
+/* a ripple in the ward's colour marks a bed the visitor just changed */
+.ripple {
+  fill: none;
+  stroke: var(--ward-general);
+  stroke-width: 3;
+  pointer-events: none;
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: ripple 900ms var(--ease-out) forwards;
+}
+
+.ripple--twin {
+  stroke: var(--ward-twin);
+}
+
+.ripple--private {
+  stroke: var(--ward-private);
+}
+
+.ripple--icu {
+  stroke: var(--ward-icu);
+}
+
+@keyframes ripple {
+  from {
+    transform: scale(0.7);
+    opacity: 0.9;
+  }
+  to {
+    transform: scale(2.2);
+    opacity: 0;
+  }
+}
+
+/* at night an occupied bed glows softly, like a monitor in a dark ward */
+[data-theme='dark'] .bed--occupied .bed__blanket {
+  filter: drop-shadow(0 0 6px color-mix(in srgb, var(--ward-general) 60%, transparent));
+}
+
+[data-theme='dark'] .bed--twin.bed--occupied .bed__blanket {
+  filter: drop-shadow(0 0 6px color-mix(in srgb, var(--ward-twin) 60%, transparent));
+}
+
+[data-theme='dark'] .bed--private.bed--occupied .bed__blanket {
+  filter: drop-shadow(0 0 6px color-mix(in srgb, var(--ward-private) 60%, transparent));
+}
+
+[data-theme='dark'] .bed--icu.bed--occupied .bed__blanket {
+  filter: drop-shadow(0 0 6px color-mix(in srgb, var(--ward-icu) 60%, transparent));
+}
+
+[data-theme='dark'] .bed__frame {
+  filter: none;
 }
 
 /* ambulances */
@@ -773,7 +1006,36 @@
 }
 
 .timeline__area {
-  fill: color-mix(in srgb, var(--ink) 10%, transparent);
+  fill: url(#timeline-wash);
+}
+
+.timeline__wash-top {
+  stop-color: var(--ink);
+  stop-opacity: 0.2;
+}
+
+.timeline__wash-bottom {
+  stop-color: var(--ink);
+  stop-opacity: 0.02;
+}
+
+.timeline--intro .timeline__line {
+  stroke-dasharray: 1;
+  animation: draw-stroke 1500ms var(--ease-out) 350ms both;
+}
+
+.timeline--intro .timeline__area {
+  animation: fade-in 900ms var(--ease-out) 1100ms both;
+}
+
+.timeline--intro .timeline__end,
+.timeline--intro .timeline__endlabel,
+.timeline--intro .timeline__head {
+  animation: fade-in 400ms var(--ease-out) 1700ms both;
+}
+
+.timeline--playing .timeline__head circle {
+  filter: drop-shadow(0 0 6px var(--signal));
 }
 
 .timeline__line {
@@ -851,14 +1113,30 @@
 /* -- the latest event --------------------------------------------------------------------- */
 
 .ticker {
-  display: flex;
-  align-items: center;
-  gap: 10px;
   padding: 12px 18px;
   border-top: 1px solid var(--line);
   background: var(--paper-2);
   font-size: 0.925rem;
-  animation: ticker-in 600ms var(--ease-out);
+}
+
+.ticker__inner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: -12px -18px;
+  padding: 12px 18px;
+  animation: ticker-in 700ms var(--ease-out);
+}
+
+.ticker__inner .ticker__text {
+  animation: ticker-text 420ms var(--ease-out) both;
+}
+
+@keyframes ticker-text {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
 }
 
 @keyframes ticker-in {
@@ -1212,6 +1490,34 @@
 
 .units__wrong {
   fill: var(--bad);
+}
+
+.proof--waiting .units__wrong {
+  fill: transparent;
+  stroke: var(--line-2);
+  stroke-width: 1.5;
+}
+
+.proof--seen .units__wrong {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: unit-fill 320ms var(--ease-out) both;
+  animation-delay: calc(var(--k) * 11ms + 150ms);
+}
+
+@keyframes unit-fill {
+  from {
+    fill: transparent;
+    stroke: var(--line-2);
+    stroke-width: 1.5;
+    transform: scale(0.5);
+  }
+  to {
+    fill: var(--bad);
+    stroke: transparent;
+    stroke-width: 0;
+    transform: scale(1);
+  }
 }
 
 .units__right {

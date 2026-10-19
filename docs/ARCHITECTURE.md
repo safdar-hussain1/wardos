@@ -73,9 +73,9 @@ Every published number is reproducible to the byte because nothing in the engine
 
 The browser runs the same sql.js (SQLite compiled to WASM) engine as Node — the two runtime fetches the app ever makes are both same-origin and relative: `sql-wasm.wasm` and the `demo.db` snapshot.
 
-- **Boot.** The app first tries IndexedDB for a previously persisted database; if none exists (first visit, or after "Reset demo"), it fetches the committed `demo.db` snapshot — a fully seeded hospital, so the first paint is already populated. A test pins the committed snapshot's SHA-256 to a freshly seeded database's, so the snapshot can never silently go stale against the seed code.
+- **Boot.** The app first tries IndexedDB for a previously persisted database; if none exists (first visit, or after "Reset the demo"), it fetches the committed `demo.db` snapshot — a fully seeded hospital, so the first paint is already populated. A test pins the committed snapshot's SHA-256 to a freshly seeded database's, so the snapshot can never silently go stale against the seed code.
 - **Persistence.** After each dispatched command the serialized database is scheduled for a write to IndexedDB, debounced ~500 ms so a burst of UI interaction coalesces into one write. On `pagehide` (and on the page becoming hidden) the pending write is flushed immediately, so closing the tab inside the debounce window doesn't drop the latest commands — best-effort by nature, since a pagehide handler cannot await, but browsers let an IndexedDB write started there run to completion.
-- **Eviction honesty.** IndexedDB is browser-managed storage and may be evicted under storage pressure. That limitation is stated in the product, not hidden: "Reset demo" always restores a clean seeded hospital, so the worst case is losing local demo edits, never an unrecoverable state.
+- **Eviction honesty.** IndexedDB is browser-managed storage and may be evicted under storage pressure. That limitation is stated in the product, not hidden: "Reset the demo" always restores a clean seeded hospital, so the worst case is losing local demo edits, never an unrecoverable state.
 
 ## One engine, three surfaces
 

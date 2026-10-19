@@ -2,7 +2,7 @@ import type { Role, Permission } from '../core/permissions'
 import { can } from '../core/permissions'
 import { DEMO_ACCOUNTS } from '../seed/facility'
 import { store } from './store'
-import { ROLE_LABELS, ROLE_ORDER } from './labels'
+import { listRoles, ROLE_ORDER } from './labels'
 
 /** The demo account that holds a role (one per role). */
 export function accountFor(role: Role): (typeof DEMO_ACCOUNTS)[number] {
@@ -28,11 +28,7 @@ export function rolesWith(permission: Permission): Role[] {
 
 /** "Reception or the administrator" style list of who may do something. */
 export function whoMay(permission: Permission): string {
-  const roles = rolesWith(permission)
-  const ordered = [...roles.filter((r) => r !== 'ADMIN'), ...roles.filter((r) => r === 'ADMIN')]
-  const names = ordered.map((r) => (r === 'ADMIN' ? 'the administrator' : ROLE_LABELS[r].toLowerCase()))
-  if (names.length <= 1) return names.join('')
-  return `${names.slice(0, -1).join(', ')} or ${names[names.length - 1]}`
+  return listRoles(rolesWith(permission), 'or')
 }
 
 /** A role, other than `current`, that may do something: the one a "switch" button offers. */

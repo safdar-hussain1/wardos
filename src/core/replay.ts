@@ -192,9 +192,9 @@ interface AmbulanceReturnedPayload {
  * that straight through).
  *
  * `beds` is accepted (not used by this function's own logic) purely for
- * signature parity with the time machine (TimeMachine.tsx), which zips a
- * Snapshot's `admissions` against bed config to render the ward board at
- * a scrubbed instant. Every field this function folds into the Snapshot
+ * signature parity with the time machine (`timeMachineVm` in
+ * src/app/viewmodels.ts), which zips a Snapshot's `admissions` against bed
+ * config to draw the floor plan at a scrubbed instant. Every field this function folds into the Snapshot
  * (including invoice room rates) already arrives via the event payloads —
  * see `InvoiceRow`'s doc comment and billing.ts vs. this file: replay never
  * recomputes billing math, it reconstructs the frozen `invoice` the

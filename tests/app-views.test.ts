@@ -18,11 +18,12 @@ import {
   historyTimeline,
   samplePatient,
   timeMachineVm,
+  WARD_ORDER,
 } from '../src/app/viewmodels'
 import type { EventNames } from '../src/app/viewmodels'
-import { planLayout, WARD_ORDER } from '../src/app/plan/layout'
+import { planLayout } from '../src/app/plan/layout'
 import type { PlanBedInput, Variant } from '../src/app/plan/layout'
-import { ROUTES, routeFromHash, routeFromKey } from '../src/app/routes'
+import { ROUTES, isHowItWorksHash, routeFromHash, routeFromKey, whoCan } from '../src/app/routes'
 import { bedRule, replayCheck, tryDischargeAsNurse, tryDoubleBooking } from '../src/app/demos'
 import { rolesWith, whoMay } from '../src/app/session'
 import { parseRupees } from '../src/app/screens/BedPanel'
@@ -224,7 +225,7 @@ describe('planLayout: the floor plan geometry', () => {
 })
 
 describe('routes', () => {
-  it('maps every current and earlier view name to a view', () => {
+  it('maps every view name and alias to a view', () => {
     expect(routeFromKey('bills')).toBe('bills')
     expect(routeFromKey('#billing')).toBe('bills')
     expect(routeFromKey('time-machine')).toBe('hospital')
@@ -234,8 +235,28 @@ describe('routes', () => {
     expect(routeFromKey('about')).toBe('measurements')
     expect(routeFromKey('how-it-works')).toBe('hospital')
     expect(routeFromKey('nowhere')).toBeNull()
+    // names an object inherits are not view names
+    expect(routeFromKey('constructor')).toBeNull()
+    expect(routeFromKey('#__proto__')).toBeNull()
+    expect(routeFromKey('toString')).toBeNull()
+    expect(routeFromHash('#constructor')).toBe('hospital')
     expect(routeFromHash('')).toBe('hospital')
     expect(routeFromHash('#nowhere')).toBe('hospital')
+  })
+
+  it('recognises a How it works link however it is written', () => {
+    expect(isHowItWorksHash('#how-it-works')).toBe(true)
+    expect(isHowItWorksHash('#How-It-Works')).toBe(true)
+    expect(isHowItWorksHash('#/how-it-works')).toBe(true)
+    expect(isHowItWorksHash('#hospital')).toBe(false)
+  })
+
+  it('says who may open each view, read from the same rule that opens it', () => {
+    const def = (key: string) => ROUTES.find((r) => r.key === key)!
+    expect(whoCan(def('bills'))).toBe('the billing desk and the administrator')
+    expect(whoCan(def('ambulances'))).toBe('reception, doctors, nurses and the administrator')
+    expect(whoCan(def('staff'))).toBe('the administrator')
+    expect(whoCan(def('hospital'))).toBe('everyone')
   })
 
   it('opens each view to exactly the roles the permission table allows', () => {
@@ -260,7 +281,7 @@ describe('who may do what, in words', () => {
       for (const role of Object.keys(MATRIX) as Role[]) expect(roles.includes(role), `${role} ${permission}`).toBe(can(role, permission))
     }
     expect(whoMay('DISCHARGE')).toBe('reception or the administrator')
-    expect(whoMay('ADD_CHARGE')).toBe('doctor, billing desk or the administrator')
+    expect(whoMay('ADD_CHARGE')).toBe('doctors, the billing desk or the administrator')
   })
 })
 

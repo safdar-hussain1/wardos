@@ -10,7 +10,10 @@
  * ids never matter.
  */
 
-export type WardKey = 'GENERAL' | 'TWIN' | 'PRIVATE' | 'ICU'
+import { WARD_ORDER } from '../viewmodels'
+import { WARD_LABELS } from '../labels'
+
+export type WardKey = (typeof WARD_ORDER)[number]
 export type Variant = 'wide' | 'tall'
 
 export interface PlanBedInput {
@@ -91,15 +94,6 @@ export interface PlanLayout {
   labels: Label[]
   ambulanceBay: Rect
   ambulanceSlots: AmbulanceSlot[]
-}
-
-export const WARD_ORDER: WardKey[] = ['GENERAL', 'TWIN', 'PRIVATE', 'ICU']
-
-export const WARD_PLATE_TEXT: Record<WardKey, string> = {
-  GENERAL: 'General ward',
-  TWIN: 'Twin sharing',
-  PRIVATE: 'Private rooms',
-  ICU: 'Intensive care',
 }
 
 function isWard(w: string): w is WardKey {
@@ -272,7 +266,7 @@ function wideLayout(beds: PlanBedInput[]): PlanLayout {
 
   const fs = 12
   const plate = (ward: WardKey, x: number, y: number): Plate => {
-    const text = WARD_PLATE_TEXT[ward]
+    const text = WARD_LABELS[ward]
     return { ward, text, x, y, w: plateWidth(text, fs), h: 24 }
   }
   const plates: Plate[] = [
@@ -352,7 +346,7 @@ function tallLayout(beds: PlanBedInput[]): PlanLayout {
   const zones: (Rect & { ward: WardKey })[] = []
   const fs = 12
   const plate = (ward: WardKey, x: number, y: number): Plate => {
-    const text = WARD_PLATE_TEXT[ward]
+    const text = WARD_LABELS[ward]
     return { ward, text, x, y, w: plateWidth(text, fs), h: 24 }
   }
 
@@ -470,9 +464,4 @@ function tallLayout(beds: PlanBedInput[]): PlanLayout {
 export function planLayout(beds: PlanBedInput[], variant: Variant): PlanLayout {
   const known = beds.filter((b) => isWard(b.ward))
   return variant === 'wide' ? wideLayout(known) : tallLayout(known)
-}
-
-/** The bed box a plan places for each bed id. */
-export function bedBoxes(layout: PlanLayout): Map<number, BedBox> {
-  return new Map(layout.beds.map((b) => [b.id, b]))
 }

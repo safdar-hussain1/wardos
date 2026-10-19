@@ -44,7 +44,7 @@ One narrower allowance covers the page's author credit. The HTML comment and the
 
 **Replay scope: `users` excluded from C2.** `USER_CREATED` events deliberately omit the password and its hash, so the `users` table cannot be reconstructed from the log. That narrows the replay-equivalence claim, and the narrowing is stated rather than fudged: a time machine over hospital *operations* never needs to answer "who could log in at instant T", and keeping secrets out of an append-only log is the right side of that trade.
 
-**IndexedDB eviction.** Browser storage is best-effort; the browser may evict it under pressure. Writes are debounced ~500 ms and flushed on `pagehide`, but the honest framing is: local edits to the demo are durable in the common case, not guaranteed. "Reset demo" always restores the clean seeded hospital, so no failure mode is unrecoverable.
+**IndexedDB eviction.** Browser storage is best-effort; the browser may evict it under pressure. Writes are debounced ~500 ms and flushed on `pagehide`, but the honest framing is: local edits to the demo are durable in the common case, not guaranteed. "Reset the demo" always restores the clean seeded hospital, so no failure mode is unrecoverable.
 
 **Frozen-clock demo semantics.** The demo anchors at a fixed instant (2026-08-01T03:30:00.000Z — 09:00 IST) and every command draws time from an injected clock. Published figures are dated, not live; "today" on the site never drifts. This is what makes the seed byte-reproducible, the benchmark rerunnable to an identical JSON, and the time machine meaningful — determinism is a feature, and the cost (the demo does not age) is stated.
 

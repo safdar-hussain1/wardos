@@ -1,20 +1,12 @@
 import { useRef, useState } from 'react'
 import type { PointerEvent } from 'react'
 import { useElementWidth } from '../hooks'
-import { formatDateIST } from '../format'
+import { formatDateIST, istDayMonth, MONTHS } from '../format'
 import { Icon } from '../icons'
 
 export interface TimelinePoint {
   iso: string
   occupied: number
-}
-
-const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
-const IST_MS = 5.5 * 3600_000
-
-function istParts(iso: string): { day: number; month: number } {
-  const d = new Date(Date.parse(iso) + IST_MS)
-  return { day: d.getUTCDate(), month: d.getUTCMonth() }
 }
 
 /** A clean axis maximum at or above the data: 17 -> 20, 8 -> 10. */
@@ -38,6 +30,7 @@ export default function Timeline({
   playing,
   onTogglePlay,
   bedsTotal,
+  intro = false,
 }: {
   points: TimelinePoint[]
   index: number
@@ -45,8 +38,11 @@ export default function Timeline({
   playing: boolean
   onTogglePlay: () => void
   bedsTotal: number
+  /** True during the page's arrival: the line draws itself from February to today. */
+  intro?: boolean
 }) {
   const wrapRef = useRef<HTMLDivElement | null>(null)
+  const rangeRef = useRef<HTMLInputElement | null>(null)
   const width = useElementWidth(wrapRef)
   const [hover, setHover] = useState<number | null>(null)
 
@@ -70,7 +66,7 @@ export default function Timeline({
   const monthTicks: { i: number; label: string }[] = []
   let prevMonth = -1
   points.forEach((p, i) => {
-    const { day, month } = istParts(p.iso)
+    const { day, month } = istDayMonth(p.iso)
     if (month !== prevMonth && (day <= 3 || i === 0)) {
       monthTicks.push({ i, label: MONTHS[month] })
     }
@@ -93,13 +89,13 @@ export default function Timeline({
     : ''
 
   return (
-    <div className="timeline">
+    <div className={`timeline${intro ? ' timeline--intro' : ''}${playing ? ' timeline--playing' : ''}`}>
       <div className="timeline__bar">
         <button
           type="button"
           className="timeline__play"
           onClick={onTogglePlay}
-          aria-label={playing ? 'Pause the replay' : 'Replay six months'}
+          aria-label={playing ? 'Pause the replay' : 'Play the time machine'}
         >
           <Icon name={playing ? 'pause' : 'play'} size={18} />
         </button>
@@ -108,7 +104,15 @@ export default function Timeline({
           <p className="timeline__help">Beds in use each morning. Drag along the chart to rewind the hospital.</p>
         </div>
         {!atNow && (
-          <button type="button" className="timeline__now" onClick={() => onScrub(last)}>
+          <button
+            type="button"
+            className="timeline__now"
+            onClick={() => {
+              onScrub(last)
+              // this button disappears at today; keep focus on the slider it belongs to
+              rangeRef.current?.focus()
+            }}
+          >
             Back to today
           </button>
         )}
@@ -116,6 +120,12 @@ export default function Timeline({
 
       <div className="timeline__chart" ref={wrapRef}>
         <svg width={W} height={H} viewBox={`0 0 ${W} ${H}`} aria-hidden="true">
+          <defs>
+            <linearGradient id="timeline-wash" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" className="timeline__wash-top" />
+              <stop offset="100%" className="timeline__wash-bottom" />
+            </linearGradient>
+          </defs>
           {[0, maxV / 2, maxV].map((v) => (
             <g key={v}>
               <line className="timeline__grid" x1={padL} x2={W - padR} y1={y(v)} y2={y(v)} />
@@ -129,8 +139,8 @@ export default function Timeline({
               {t.label}
             </text>
           ))}
-          <path className="timeline__area" d={area} />
-          <path className="timeline__line" d={line} />
+          <path className="timeline__area" d={area} fill="url(#timeline-wash)" />
+          <path className="timeline__line" d={line} pathLength={1} />
           {n > 0 && (
             <>
               <circle className="timeline__end" cx={x(last)} cy={y(points[last].occupied)} r={4} />
@@ -151,6 +161,7 @@ export default function Timeline({
         </svg>
         <input
           className="timeline__range"
+          ref={rangeRef}
           type="range"
           min={0}
           max={Math.max(0, last)}

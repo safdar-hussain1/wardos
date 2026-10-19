@@ -3,7 +3,7 @@ import { IST_OFFSET_MS } from '../core/billing'
 
 export { formatINR }
 
-const MONTHS = [
+export const MONTHS = [
   'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
   'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
 ]
@@ -11,6 +11,12 @@ const MONTHS = [
 /** Shifts a UTC instant by the fixed IST offset so UTC getters read as IST fields. */
 function toIstFields(iso: string): Date {
   return new Date(new Date(iso).getTime() + IST_OFFSET_MS)
+}
+
+/** The IST calendar day and month (0-11) of an instant. */
+export function istDayMonth(iso: string): { day: number; month: number } {
+  const ist = toIstFields(iso)
+  return { day: ist.getUTCDate(), month: ist.getUTCMonth() }
 }
 
 /** Formats an ISO instant as an IST calendar date, e.g. "01 Aug 2026". */

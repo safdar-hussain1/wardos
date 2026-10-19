@@ -1,16 +1,14 @@
 import { describe, it, expect } from 'vitest'
 import { Db } from '../src/db/database'
 import { FixedClock, ANCHOR_ISO } from '../src/core/clock'
-import { Engine, type Actor, type BedView } from '../src/core/engine'
+import { Engine, type Actor } from '../src/core/engine'
 import { computeInvoice } from '../src/core/billing'
 import { rupees, addP } from '../src/core/money'
 import { Doctor, payBreakdown } from '../src/core/staff'
 import type { EventRow } from '../src/core/events'
 import { formatINR, formatDateIST, formatDateTimeIST } from '../src/app/format'
 import {
-  bedGrid,
   chartVm,
-  WARD_ORDER,
   billingVm,
   payrollVm,
   auditPageVm,
@@ -21,86 +19,6 @@ import {
 const ADMIN: Actor = { userId: 1, role: 'ADMIN', username: 'admin' }
 const DOCTOR: Actor = { userId: 2, role: 'DOCTOR', username: 'dr.rao' }
 const RECEPTION: Actor = { userId: 3, role: 'RECEPTION', username: 'reception' }
-
-// Mirrors src/seed/facility.ts's WARD_LAYOUT (14 GENERAL / 8 TWIN / 6 PRIVATE
-// / 4 ICU = 32 beds) with hand-built BedView fixtures, so these view-model
-// tests stay fast and don't depend on the full six-month seed.
-const WARD_LAYOUT: { ward: (typeof WARD_ORDER)[number]; count: number; ratePaise: number; prefix: string }[] = [
-  { ward: 'GENERAL', count: 14, ratePaise: 150000, prefix: 'G' },
-  { ward: 'TWIN', count: 8, ratePaise: 280000, prefix: 'T' },
-  { ward: 'PRIVATE', count: 6, ratePaise: 500000, prefix: 'P' },
-  { ward: 'ICU', count: 4, ratePaise: 950000, prefix: 'I' },
-]
-
-function buildFixtureBeds(occupiedIds: Set<number> = new Set()): BedView[] {
-  const beds: BedView[] = []
-  let id = 1
-  for (const w of WARD_LAYOUT) {
-    for (let i = 1; i <= w.count; i++) {
-      const occupied = occupiedIds.has(id)
-      beds.push({
-        id,
-        label: `${w.prefix}${i}`,
-        ward: w.ward,
-        ratePaise: w.ratePaise,
-        occupied,
-        patientName: occupied ? `Patient ${id}` : undefined,
-        admissionId: occupied ? id : undefined,
-        admittedAt: occupied ? ANCHOR_ISO : undefined,
-      })
-      id++
-    }
-  }
-  return beds
-}
-
-describe('bedGrid', () => {
-  it('groups all 32 fixture beds into GENERAL/TWIN/PRIVATE/ICU, in that fixed order', () => {
-    const beds = buildFixtureBeds()
-    const groups = bedGrid(beds)
-    expect(groups.map((g) => g.ward)).toEqual(['GENERAL', 'TWIN', 'PRIVATE', 'ICU'])
-    expect(groups.reduce((n, g) => n + g.beds.length, 0)).toBe(32)
-  })
-
-  it('assigns each ward its correct bed count', () => {
-    const beds = buildFixtureBeds()
-    const groups = bedGrid(beds)
-    const counts = Object.fromEntries(groups.map((g) => [g.ward, g.beds.length]))
-    expect(counts).toEqual({ GENERAL: 14, TWIN: 8, PRIVATE: 6, ICU: 4 })
-  })
-
-  it('computes accurate per-ward free/occupied counts', () => {
-    // Occupy bed 1 (GENERAL) and beds 15-16 (TWIN, first two).
-    const beds = buildFixtureBeds(new Set([1, 15, 16]))
-    const groups = bedGrid(beds)
-
-    const general = groups.find((g) => g.ward === 'GENERAL')!
-    expect(general.occupiedCount).toBe(1)
-    expect(general.freeCount).toBe(13)
-
-    const twin = groups.find((g) => g.ward === 'TWIN')!
-    expect(twin.occupiedCount).toBe(2)
-    expect(twin.freeCount).toBe(6)
-
-    const priv = groups.find((g) => g.ward === 'PRIVATE')!
-    expect(priv.occupiedCount).toBe(0)
-    expect(priv.freeCount).toBe(6)
-
-    const icu = groups.find((g) => g.ward === 'ICU')!
-    expect(icu.occupiedCount).toBe(0)
-    expect(icu.freeCount).toBe(4)
-  })
-
-  it('is stable on an empty bed list (still returns all four ward groups)', () => {
-    const groups = bedGrid([])
-    expect(groups.map((g) => g.ward)).toEqual(['GENERAL', 'TWIN', 'PRIVATE', 'ICU'])
-    for (const g of groups) {
-      expect(g.beds).toEqual([])
-      expect(g.freeCount).toBe(0)
-      expect(g.occupiedCount).toBe(0)
-    }
-  })
-})
 
 /** Fresh db + engine wired to a FixedClock, with two GENERAL beds seeded — cheap, no full seed. */
 async function setupEngine() {

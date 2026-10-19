@@ -48,7 +48,7 @@ describe('seedHospital: shape of six months of generated history', () => {
     expect(events.length).toBe(seeded.commandCount)
   })
 
-  it('all five demo accounts authenticate with the passwords and roles shown on the login screen and in the README', () => {
+  it('all five demo accounts authenticate with the passwords and roles published in the README', () => {
     for (const acc of DEMO_ACCOUNTS) {
       const actor = seeded.engine.authenticate(acc.username, acc.password)
       expect(actor.role).toBe(acc.role)

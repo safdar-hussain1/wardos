@@ -21,13 +21,7 @@ export function useHashRoute(): { route: RouteKey; hash: string } {
 }
 
 export function navigateTo(hash: string): void {
-  const next = hash.startsWith('#') ? hash : `#${hash}`
-  if (window.location.hash === next) {
-    // Same hash again (e.g. "How it works" clicked twice): still scroll to it.
-    window.dispatchEvent(new HashChangeEvent('hashchange'))
-    return
-  }
-  window.location.hash = next
+  window.location.hash = hash.startsWith('#') ? hash : `#${hash}`
 }
 
 // -- media queries ------------------------------------------------------------
@@ -54,13 +48,15 @@ export function usePrefersReducedMotion(): boolean {
 
 // -- element size ---------------------------------------------------------------
 
-/** The element's content-box width, kept current with a ResizeObserver (0 until measured). */
+/**
+ * The element's content-box width, kept current with a ResizeObserver (0
+ * until its first report, which arrives before the next paint).
+ */
 export function useElementWidth(ref: RefObject<HTMLElement | null>): number {
   const [width, setWidth] = useState(0)
   useEffect(() => {
     const el = ref.current
     if (!el) return
-    setWidth(el.getBoundingClientRect().width)
     const observer = new ResizeObserver((entries) => {
       for (const entry of entries) setWidth(entry.contentRect.width)
     })

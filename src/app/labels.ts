@@ -25,7 +25,31 @@ export const ROLE_BLURBS: Record<Role, string> = {
 
 export const ROLE_ORDER: Role[] = ['ADMIN', 'RECEPTION', 'DOCTOR', 'NURSE', 'BILLING']
 
-export type WardCode = 'GENERAL' | 'TWIN' | 'PRIVATE' | 'ICU'
+/** Each role as it reads in "only ... can" sentences. */
+export const ROLE_WHO: Record<Role, string> = {
+  ADMIN: 'the administrator',
+  RECEPTION: 'reception',
+  DOCTOR: 'doctors',
+  NURSE: 'nurses',
+  BILLING: 'the billing desk',
+}
+
+/** One person in the role, as it reads after "as" or "to": "as a nurse", "open to the billing desk". */
+export const ROLE_AS: Record<Role, string> = {
+  ADMIN: 'the administrator',
+  RECEPTION: 'reception',
+  DOCTOR: 'a doctor',
+  NURSE: 'a nurse',
+  BILLING: 'the billing desk',
+}
+
+/** A list of roles as a sentence, the administrator last: "reception, doctors and the administrator". */
+export function listRoles(roles: Role[], conjunction: 'and' | 'or'): string {
+  const ordered = [...roles.filter((r) => r !== 'ADMIN'), ...roles.filter((r) => r === 'ADMIN')]
+  const names = ordered.map((r) => ROLE_WHO[r])
+  if (names.length <= 1) return names.join('')
+  return `${names.slice(0, -1).join(', ')} ${conjunction} ${names[names.length - 1]}`
+}
 
 export const WARD_LABELS: Record<string, string> = {
   GENERAL: 'General ward',

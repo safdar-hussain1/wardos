@@ -1,13 +1,14 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { memo, useEffect, useMemo, useRef, useState } from 'react'
 import type { Engine, Actor, BedView } from '../../core/engine'
 import type { ComputedInvoice } from '../../core/billing'
 import { nightsBetween } from '../../core/billing'
 import { ANCHOR_ISO } from '../../core/clock'
-import { describeEvent, eventNamesFrom, historyFrames } from '../viewmodels'
+import { describeEvent, eventNamesFrom, historyInstant, historyTimeline, timeMachineVm, WARD_ORDER } from '../viewmodels'
 import type { HistoryFrame } from '../viewmodels'
 import { formatDateIST, formatDateTimeIST } from '../format'
 import { WARD_LABELS, WARD_TOKENS } from '../labels'
-import { useElementWidth, usePrefersReducedMotion, navigateTo } from '../hooks'
+import { useElementWidth, usePrefersReducedMotion, navigateTo, useHashRoute } from '../hooks'
+import { isHowItWorksHash } from '../routes'
 import FloorPlan from '../plan/FloorPlan'
 import type { PlanAmbulance, PlanBed } from '../plan/FloorPlan'
 import Timeline from '../plan/Timeline'
@@ -17,17 +18,34 @@ import InvoiceDetail from './InvoiceDetail'
 import HowItWorks from './HowItWorks'
 import Proof from './Proof'
 import { Icon } from '../icons'
-import { WARD_ORDER } from '../plan/layout'
+import { CountUp } from '../motion'
+
+// Neither section needs to redraw while the time machine plays: How it
+// works changes only when the event log grows, the proof figure never.
+const HowItWorksSection = memo(HowItWorks)
+const ProofSection = memo(Proof)
+
+/** How many mornings to replay per slice, so building the history never blocks the page for long. */
+const FRAMES_PER_SLICE = 12
 
 /** How long "Replay six months" takes from the first morning to today. */
 const REPLAY_MS = 12_000
+
+/** How long the arrival sequence runs (walls, floor lines, beds, counters, chart). */
+const INTRO_MS = 2800
+
+/**
+ * The arrival sequence plays once per page load: coming back to this view
+ * from Bills or Staff shows the hospital at once.
+ */
+let arrivedOnce = false
 
 type DrawerState =
   | { kind: 'bed'; bedId: number; note?: string }
   | { kind: 'bill'; invoice: ComputedInvoice; patientName: string; bedLabel: string; ward: string }
 
-function liveBeds(engine: Engine): PlanBed[] {
-  return engine.beds().map((b) => ({
+function toPlanBeds(beds: BedView[]): PlanBed[] {
+  return beds.map((b) => ({
     id: b.id,
     label: b.label,
     ward: b.ward,
@@ -52,13 +70,39 @@ export default function Hospital({ engine, actor }: { engine: Engine; actor: Act
   const [position, setPosition] = useState<number | null>(null) // null = today
   const [playing, setPlaying] = useState(false)
   const [drawer, setDrawer] = useState<DrawerState | null>(null)
+  const [replayRun, setReplayRun] = useState(0)
+  const [intro, setIntro] = useState(() => !arrivedOnce)
+  const { hash } = useHashRoute()
+
+  useEffect(() => {
+    arrivedOnce = true
+    if (!intro) return
+    const timer = window.setTimeout(() => setIntro(false), INTRO_MS)
+    return () => window.clearTimeout(timer)
+  }, [intro])
 
   // The whole history, one replay per morning, worked out once per database
-  // (the visitor's own changes all happen "today", which the plan reads live).
+  // (the visitor's own changes all happen "today", which the plan reads
+  // live). Built a few mornings per slice, yielding between slices, so the
+  // arrival animation and the page stay responsive while it runs.
   useEffect(() => {
     setFrames(null)
     const beds = engine.beds().map((b) => ({ id: b.id, label: b.label, ward: b.ward, ratePaise: b.ratePaise }))
-    const timer = window.setTimeout(() => setFrames(historyFrames(engine.eventsLog(), beds, ANCHOR_ISO)), 60)
+    const events = engine.eventsLog()
+    const timeline = historyTimeline(events, ANCHOR_ISO)
+    const built: HistoryFrame[] = []
+    let day = 0
+    let timer = 0
+    const slice = () => {
+      const end = Math.min(timeline.days, day + FRAMES_PER_SLICE - 1)
+      for (; day <= end; day++) {
+        const vm = timeMachineVm(events, beds, historyInstant(timeline, ANCHOR_ISO, day))
+        built.push({ iso: vm.uptoIso, occupied: vm.activeAdmissions, beds: vm.beds, ambulancesOut: vm.ambulancesOut })
+      }
+      if (day > timeline.days) setFrames(built)
+      else timer = window.setTimeout(slice, 0)
+    }
+    timer = window.setTimeout(slice, 120)
     return () => window.clearTimeout(timer)
   }, [engine])
 
@@ -74,7 +118,8 @@ export default function Hospital({ engine, actor }: { engine: Engine; actor: Act
     const started = performance.now()
     let raf = 0
     const tick = (now: number) => {
-      const next = Math.min(last, from + Math.floor((now - started) / perDay))
+      // the first frame's timestamp can precede `started`; never step backwards
+      const next = Math.min(last, from + Math.floor(Math.max(0, now - started) / perDay))
       setPosition(next >= last ? null : next)
       if (next >= last) {
         setPlaying(false)
@@ -84,11 +129,20 @@ export default function Hospital({ engine, actor }: { engine: Engine; actor: Act
     }
     raf = requestAnimationFrame(tick)
     return () => cancelAnimationFrame(raf)
-    // `position` is read once, as the starting point; from then on the loop owns it.
-  }, [playing, frames])
+    // `position` is read once, as the starting point; from then on the loop
+    // owns it. `replayRun` restarts it when "Replay six months" is pressed mid-play.
+  }, [playing, frames, replayRun])
+
+  // A link to #how-it-works scrolls there before the plan and the chart have
+  // their real height; once they do, put the section back at the top.
+  const planReady = planWidth > 0 && frames !== null
+  useEffect(() => {
+    if (!planReady || !isHowItWorksHash(window.location.hash)) return
+    document.getElementById('how-it-works')?.scrollIntoView({ block: 'start' })
+  }, [planReady, hash])
 
   const bedsNow = engine.beds()
-  const live = liveBeds(engine)
+  const live = toPlanBeds(bedsNow)
   const planBeds: PlanBed[] = frame
     ? frame.beds.map((b) => ({ id: b.id, label: b.label, ward: b.ward, occupied: b.occupied, patientName: b.patientName }))
     : live
@@ -135,6 +189,7 @@ export default function Hospital({ engine, actor }: { engine: Engine; actor: Act
     setDrawer(null)
     setPosition(0)
     setPlaying(true)
+    setReplayRun((n) => n + 1)
     planRef.current?.scrollIntoView({ behavior: reducedMotion ? 'auto' : 'smooth', block: 'center' })
   }
 
@@ -155,7 +210,7 @@ export default function Hospital({ engine, actor }: { engine: Engine; actor: Act
     : `The hospital today: ${inUse} of ${planBeds.length} beds in use. Select a bed to admit a patient or open a chart.`
 
   return (
-    <div className="hospital">
+    <div className={`hospital${intro ? ' hospital--intro' : ''}`}>
       <section className="hero" aria-labelledby="hero-title">
         <div className="sign">
           <h1 id="hero-title" className="sign__title">
@@ -165,14 +220,28 @@ export default function Hospital({ engine, actor }: { engine: Engine; actor: Act
             WardOS runs a 32-bed hospital on a real SQLite database inside the page: admissions, bills, ambulances
             and staff pay, with six months of history behind them. Nothing you do here leaves your device.
           </p>
+          <ul className="sign__facts">
+            <li>
+              <Icon name="database" size={18} />A real SQLite database, running in the page
+            </li>
+            <li>
+              <Icon name="log" size={18} />
+              Every change logged, and replayable
+            </li>
+            <li>
+              <Icon name="shield" size={18} />
+              Money kept in exact paise, never floats
+            </li>
+          </ul>
 
           <ul className="directory" aria-label={frame ? `Beds in use on ${formatDateIST(frame.iso)}` : 'Beds in use today'}>
-            {byWard.map((w) => (
+            {byWard.map((w, i) => (
               <li key={w.ward} className={`directory__row directory__row--${WARD_TOKENS[w.ward]}`}>
                 <span className="directory__dot" aria-hidden="true" />
                 <span className="directory__name">{WARD_LABELS[w.ward]}</span>
                 <span className="directory__count num">
-                  {w.used} <span className="directory__of">of {w.total} in use</span>
+                  <CountUp value={w.used} play={intro} delay={1300 + i * 90} />{' '}
+                  <span className="directory__of">of {w.total} in use</span>
                 </span>
               </li>
             ))}
@@ -195,14 +264,16 @@ export default function Hospital({ engine, actor }: { engine: Engine; actor: Act
           </p>
         </div>
 
-        <div className="plan-card">
+        <div className={`plan-card${frame ? ' plan-card--history' : ''}`}>
+          {frame && position !== null && (
+            <div className="replaybar" style={{ ['--p' as string]: position / Math.max(1, last) }} aria-hidden="true" />
+          )}
           <div className="plan-card__bar">
             {frame ? (
               <p className="status status--history">
-                <Icon name="rewind" size={18} />
-                <span>
-                  <strong>{formatDateIST(frame.iso)}</strong>, replayed from the event log
-                </span>
+                <Icon name="rewind" size={20} />
+                <span className="status__date num">{formatDateIST(frame.iso)}</span>
+                <span className="status__note">{playing ? 'Replaying the event log' : 'Replayed from the event log'}</span>
               </p>
             ) : (
               <p className="status status--live">
@@ -213,7 +284,10 @@ export default function Hospital({ engine, actor }: { engine: Engine; actor: Act
               </p>
             )}
             <p className="plan-card__count">
-              <strong className="num">{inUse}</strong> of {planBeds.length} beds in use
+              <strong className="num">
+                <CountUp value={inUse} play={intro} delay={1300} />
+              </strong>{' '}
+              of {planBeds.length} beds in use
             </p>
           </div>
 
@@ -223,6 +297,7 @@ export default function Hospital({ engine, actor }: { engine: Engine; actor: Act
                 beds={planBeds}
                 ambulances={planAmbulances}
                 variant={variant}
+                intro={intro}
                 interactive={!frame}
                 selectedBedId={drawer?.kind === 'bed' ? drawer.bedId : null}
                 onSelectBed={(bed) => setDrawer({ kind: 'bed', bedId: bed.id })}
@@ -240,25 +315,29 @@ export default function Hospital({ engine, actor }: { engine: Engine; actor: Act
               playing={playing}
               onTogglePlay={togglePlay}
               bedsTotal={planBeds.length}
+              intro={intro}
             />
           ) : (
             <p className="timeline timeline--loading">Replaying six months of history…</p>
           )}
 
-          {latestSentence && latest && (
-            <p className="ticker" key={latest.id} aria-live="polite">
-              <span className={`ticker__kind ticker__kind--${latestSentence.kind}`} aria-hidden="true" />
-              <span className="ticker__text">
-                <span className="ticker__label">Latest</span> {latestSentence.who} {latestSentence.did}
+          {/* One stable live region; only its contents change, so a screen reader announces each new event. */}
+          <p className="ticker" aria-live="polite">
+            {latestSentence && latest && (
+              <span className="ticker__inner" key={latest.id}>
+                <span className={`ticker__kind ticker__kind--${latestSentence.kind}`} aria-hidden="true" />
+                <span className="ticker__text">
+                  <span className="ticker__label">Latest</span> {latestSentence.who} {latestSentence.did}
+                </span>
+                <span className="ticker__meta">Event {latest.id.toLocaleString('en-IN')}</span>
               </span>
-              <span className="ticker__meta">Event {latest.id.toLocaleString('en-IN')}</span>
-            </p>
-          )}
+            )}
+          </p>
         </div>
       </section>
 
-      <HowItWorks engine={engine} actor={actor} />
-      <Proof />
+      <HowItWorksSection engine={engine} actor={actor} logVersion={eventCount} />
+      <ProofSection />
 
       {drawer?.kind === 'bed' && drawerBed && (
         <Drawer
@@ -270,8 +349,11 @@ export default function Hospital({ engine, actor }: { engine: Engine; actor: Act
           title={drawerBed.occupied ? (drawerBed.patientName ?? 'Patient') : 'Admit a patient'}
           onClose={() => setDrawer(null)}
         >
+          <p className="sr-only" role="status" aria-live="polite">
+            {drawer.note ?? ''}
+          </p>
           {drawer.note && (
-            <p className="notice notice--ok" role="status">
+            <p className="notice notice--ok">
               <Icon name="check" size={18} /> {drawer.note}
             </p>
           )}
@@ -282,7 +364,7 @@ export default function Hospital({ engine, actor }: { engine: Engine; actor: Act
               actor={actor}
               admissionId={drawerBed.admissionId}
               anchorIso={ANCHOR_ISO}
-              onMoved={(bedId) => setDrawer({ kind: 'bed', bedId, note: 'Moved. This is the new bed.' })}
+              onMoved={(bedId) => setDrawer({ kind: 'bed', bedId })}
               onDischarged={(invoice, patientName) =>
                 setDrawer({ kind: 'bill', invoice, patientName, bedLabel: drawerBed.label, ward: drawerBed.ward })
               }

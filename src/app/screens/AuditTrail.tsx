@@ -39,7 +39,7 @@ export default function AuditTrail({ engine, actor }: { engine: Engine; actor: A
         <h1 id="log-title">Event log</h1>
         <p>
           Every change ever made to this hospital, newest first. The log only grows: the database itself refuses to
-          edit or delete a line, and replaying it from the top gives back the whole hospital.
+          edit or delete a line, and replaying it from the top gives back every patient, stay, charge, bill, ambulance call and staff record.
         </p>
       </header>
 
